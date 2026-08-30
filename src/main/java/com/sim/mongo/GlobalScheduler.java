@@ -26,5 +26,7 @@ public class GlobalScheduler {
     public synchronized Event next() { return queue.poll(); }
     public synchronized boolean isEmpty() { return queue.isEmpty(); }
 
-
+    public synchronized void clear() {
+        queue.clear();
+    }
 }

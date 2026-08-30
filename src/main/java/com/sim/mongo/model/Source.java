@@ -57,4 +57,8 @@ public class Source {
     public PrimaryNode getTargetShardPrimaryNode(){
         return shard.getPrimaryNode();
     }
+
+    public void setClientToNodeTravelTime(Distribution distribution){
+        clientToNodeTravelTime = distribution;
+    }
 }

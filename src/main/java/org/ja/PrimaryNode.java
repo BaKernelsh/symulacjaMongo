@@ -4,7 +4,7 @@ import java.util.HashMap;
 
 public class PrimaryNode {
 
-    private HashMap<String, Collection> collectionsByName;
+    private HashMap<String, Collection> collectionsByName = new HashMap<>();
 
     private ConcurrencyManager concurrencyManager;
 
@@ -26,6 +26,10 @@ public class PrimaryNode {
 
     public int getNumberOfDocsInCollection(String collectionName){
         return getCollectionByName(collectionName).getNumberOfDocuments();
+    }
+
+    public void addCollection(String name, int numberOfDocs){
+        collectionsByName.put(name, new Collection(name, numberOfDocs));
     }
 
 }

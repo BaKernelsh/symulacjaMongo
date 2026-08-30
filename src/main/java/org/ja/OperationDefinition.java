@@ -34,4 +34,23 @@ public class OperationDefinition {
     public void setAffectedDocNumberDistribution(com.sim.mongo.distributions.Distribution d) { this.affectedDocNumberDistribution = d; }
     public void setBaseExecutionTimeDistribution(com.sim.mongo.distributions.Distribution d) { this.baseExecutionTimeDistribution = d; }
 
+    public void setTypeFromString(String type){
+        switch(type) {
+            case "FIND":
+                this.type = OperationTypeEnum.FIND;
+                break;
+            case "INSERT":
+                this.type = OperationTypeEnum.INSERT;
+                break;
+            case "UPDATE":
+                this.type = OperationTypeEnum.UPDATE;
+                break;
+            case "DELETE":
+                this.type = OperationTypeEnum.DELETE;
+                break;
+            case "AGGREGATE":
+                this.type = OperationTypeEnum.AGGREGATE;
+                break;
+        }
+    }
 }

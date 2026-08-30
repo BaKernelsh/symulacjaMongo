@@ -9,10 +9,13 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.util.Pair;
 import org.ja.OperationTypeEnum;
+import org.ja.Shard;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class SimulatorController {
 
@@ -108,7 +111,11 @@ public class SimulatorController {
         int sourceId = 0;
         for (SourceConfig sconf : sources) {
             // find assigned shard (by name) and map to an org.ja.Shard instance
-            org.ja.Shard targetShard = new org.ja.Shard(); // you may want a constructor or setup nodes
+            ShardConfig shardConf =  findShardByName(sconf.getAssignedShard());
+            Shard targetShard = new org.ja.Shard(); // you may want a constructor or setup nodes
+            for(CollectionConfig collConf : shardConf.getCollections()){
+                targetShard.addCollection(collConf.getName(), collConf.getSize());
+            }
             // Build lists of OperationDefinition
             java.util.List<org.ja.OperationDefinition> readDefs = new java.util.ArrayList<>();
             java.util.List<org.ja.OperationDefinition> writeDefs = new java.util.ArrayList<>();
@@ -122,7 +129,7 @@ public class SimulatorController {
                 // These setter methods must be added to OperationDefinition (see suggestion below)
                 def.setId(opc.id);
                 def.setAffectedCollectionName(opc.affectedCollection);
-                def.setType(OperationTypeEnum.FIND); // adjust if you add type selection
+                def.setTypeFromString(opc.type);
                 def.setOperationsPerSecondDistribution(opsDist);
                 def.setAffectedDocNumberDistribution(docsDist);
                 def.setBaseExecutionTimeDistribution(baseDist);
@@ -149,7 +156,11 @@ public class SimulatorController {
                 sim.run();
                 appendLog("Simulation finished");
             } catch (Exception ex) {
-                appendLog("Simulation error: " + ex.getMessage());
+                System.out.println("Simulation error:");
+                ex.printStackTrace(System.out);
+
+                // GUI shows only a short, non-sensitive notice
+                appendLog("Simulation error occurred (see stdout)");
             }
         }, "simulation-thread");
         simulationThread.start();
@@ -292,6 +303,13 @@ public class SimulatorController {
         }
         collectionChoice.setItems(FXCollections.observableArrayList(colNames));
 
+        // type choice populated from OperationTypeEnum
+        ChoiceBox<String> typeChoice = new ChoiceBox<>(FXCollections.observableArrayList(
+                Arrays.stream(OperationTypeEnum.values()).map(Enum::name).collect(Collectors.toList())
+        ));
+        typeChoice.setValue(OperationTypeEnum.values()[0].name());
+
+
         // distribution buttons and summaries
         Button opsPerSecBtn = new Button("Set ops/sec distribution");
         Label opsPerSecSummary = new Label("(not set)");
@@ -331,12 +349,15 @@ public class SimulatorController {
         grid.add(new Label("Affected collection:"), 0, 1);
         grid.add(collectionChoice, 1, 1);
 
-        grid.add(opsPerSecBtn, 0, 2);
-        grid.add(opsPerSecSummary, 1, 2);
-        grid.add(affectedDocsBtn, 0, 3);
-        grid.add(affectedDocsSummary, 1, 3);
-        grid.add(baseExecBtn, 0, 4);
-        grid.add(baseExecSummary, 1, 4);
+        grid.add(new Label("Type:"), 0, 2);
+        grid.add(typeChoice, 1, 2);
+
+        grid.add(opsPerSecBtn, 0, 3);
+        grid.add(opsPerSecSummary, 1, 3);
+        grid.add(affectedDocsBtn, 0, 4);
+        grid.add(affectedDocsSummary, 1, 4);
+        grid.add(baseExecBtn, 0, 5);
+        grid.add(baseExecSummary, 1, 5);
 
         dialog.getDialogPane().setContent(grid);
 
@@ -344,12 +365,12 @@ public class SimulatorController {
             if (dialogButton == addButtonType) {
                 String id = idField.getText();
                 String coll = collectionChoice.getValue();
+                String type = typeChoice.getValue();
                 if (id == null || id.isBlank()) { showAlert("Operation id required"); return null; }
                 if (opsDist[0] == null) { showAlert("ops/sec distribution required"); return null; }
                 if (docsDist[0] == null) { showAlert("affectedDocs distribution required"); return null; }
                 if (baseDist[0] == null) { showAlert("baseExecTime distribution required"); return null; }
-                // default type: READ if collection selected? Keep as READ by default
-                String type = "READ";
+
                 return new OperationConfig(id.trim(), type, coll, opsDist[0], docsDist[0], baseDist[0]);
             }
             return null;

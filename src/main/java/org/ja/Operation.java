@@ -74,9 +74,22 @@ public class Operation {
         Random rand = new Random();
         long thisOpTimeIncrease = 0;
         if(rand.nextDouble() < conflictProbability){
-            int numberOfConflicts = rand.nextInt(1, Math.min(affectedDocumentCount, otherOperation.affectedDocumentCount));
-            int thisOpNumberOfLockWaits = numberOfConflicts / 2;
-            int otherOpNumberOfLockWaits = numberOfConflicts - thisOpNumberOfLockWaits;
+            int numberOfConflicts;
+            int thisOpNumberOfLockWaits;
+            int otherOpNumberOfLockWaits;
+
+            int maxNumberOfConflicts = Math.min(affectedDocumentCount, otherOperation.affectedDocumentCount);
+            if(maxNumberOfConflicts > 1) {
+                numberOfConflicts = rand.nextInt(1, maxNumberOfConflicts);
+                thisOpNumberOfLockWaits = numberOfConflicts / 2;
+                otherOpNumberOfLockWaits = numberOfConflicts - thisOpNumberOfLockWaits;
+            }
+            else {
+                numberOfConflicts = 1;
+                thisOpNumberOfLockWaits = 1;
+                otherOpNumberOfLockWaits = 0;
+            }
+
             for(int i=0; i<thisOpNumberOfLockWaits; i++){
                 int numberOfRetries = rand.nextInt(1, 199);
                 long timeWaitingOnLocks = OperationUtils.calcTotalSleepTimeForRetries(numberOfRetries);

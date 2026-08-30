@@ -13,4 +13,8 @@ public class Shard {
     }
 
 
+    public void addCollection(String name, int numberOfDocs){
+        primaryNode.addCollection(name, numberOfDocs);
+    }
+
 }

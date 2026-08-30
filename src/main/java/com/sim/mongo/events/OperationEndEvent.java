@@ -11,7 +11,7 @@ public class OperationEndEvent extends Event {
 
     public OperationEndEvent(Operation operation, long time){
         super(time);
-
+        this.operation = operation;
     }
 
     @Override

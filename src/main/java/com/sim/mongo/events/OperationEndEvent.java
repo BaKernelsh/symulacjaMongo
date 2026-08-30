@@ -7,6 +7,7 @@ import org.ja.Operation;
 public class OperationEndEvent extends Event {
     @Getter
     private Operation operation;
+    private boolean rescheduled = false;
 
     public OperationEndEvent(Operation operation, long time){
         super(time);
@@ -15,6 +16,11 @@ public class OperationEndEvent extends Event {
 
     @Override
     public void process() {
-        operation.endOperationSuccessfully(time);
+        if(!rescheduled)
+            operation.endOperationSuccessfully(time);
+    }
+
+    public void cancel(){
+        rescheduled = true;
     }
 }

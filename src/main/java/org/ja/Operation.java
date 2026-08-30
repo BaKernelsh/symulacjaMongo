@@ -113,7 +113,8 @@ public class Operation {
 
     private void updateExecutionTimeAndRescheduleEndEvent(long executionTimeToAdd){
         executionTime += executionTimeToAdd;
+        endEvent.cancel();
         endEvent = new OperationEndEvent(this, executionStartTime + executionTime);
-        GlobalScheduler.instance().rescheduleOperationEndEvent(this, endEvent);
+        GlobalScheduler.instance().schedule(endEvent);
     }
 }

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<BorderPane xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.sim.mongo.gui.SimulatorController">
+    <center>
+        <HBox spacing="20" padding="16">
+            <VBox spacing="8" prefWidth="300">
+                <Label text="Shards" />
+                <ListView fx:id="shardsListView" prefHeight="400" />
+                <HBox spacing="4">
+                    <TextField fx:id="newShardNameField" promptText="shard name" />
+                    <Button fx:id="addShardButton" text="Add" />
+                </HBox>
+            </VBox>
+
+            <VBox spacing="8" prefWidth="560">
+                <Label text="Sources" />
+                <ListView fx:id="sourcesListView" prefHeight="280" />
+
+                <GridPane hgap="8" vgap="8">
+                    <Label text="Source name:" GridPane.rowIndex="0" GridPane.columnIndex="0" />
+                    <TextField fx:id="newSourceNameField" GridPane.rowIndex="0" GridPane.columnIndex="1" />
+
+                    <Label text="Distribution:" GridPane.rowIndex="1" GridPane.columnIndex="0" />
+                    <ChoiceBox fx:id="distributionChoiceBox" GridPane.rowIndex="1" GridPane.columnIndex="1" />
+
+                    <Label text="Param (e.g. mean)" GridPane.rowIndex="2" GridPane.columnIndex="0" />
+                    <TextField fx:id="distributionParamField" GridPane.rowIndex="2" GridPane.columnIndex="1" />
+
+                    <Button fx:id="addSourceButton" text="Add Source" GridPane.rowIndex="3" GridPane.columnIndex="1" />
+                </GridPane>
+
+                <HBox spacing="8" padding="8">
+                    <Button fx:id="assignShardButton" text="Assign selected shard to selected source" />
+                    <Button fx:id="saveButton" text="Save config..." />
+                </HBox>
+            </VBox>
+        </HBox>
+    </center>
+</BorderPane>

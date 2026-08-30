@@ -1,12 +1,16 @@
 package org.ja;
 
-import java.util.HashMap;
+import lombok.Getter;
+
 
 public class Shard {
+    @Getter
     private PrimaryNode primaryNode;
     private String primaryNodeId;
 
-    private HashMap<String, SecondaryNode> IDToSecondaryNodes;
+    public void arriveOperation(Operation operation, long arriveTime){
+        primaryNode.arriveOperation(operation,arriveTime);
+    }
 
 
 }

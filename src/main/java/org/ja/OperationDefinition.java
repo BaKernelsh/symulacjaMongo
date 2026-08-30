@@ -1,5 +1,6 @@
 package org.ja;
 
+import com.sim.mongo.distributions.Distribution;
 import lombok.Getter;
 
 public class OperationDefinition {
@@ -8,9 +9,21 @@ public class OperationDefinition {
     private String affectedCollectionName;
     @Getter
     OperationTypeEnum type;
-    private IDistribution operationsPerSecondDistribution;
-    private IDistribution affectedDocNumberDistribution;
+    private Distribution operationsPerSecondDistribution;
+    private Distribution affectedDocNumberDistribution;
+    private Distribution baseExecutionTimeDistribution;
 
 
+    public int getRandomOpNumber(){
+        return (int) operationsPerSecondDistribution.sample();
+    }
+
+    public int getRandomAffectedDocNumber(){
+        return (int) affectedDocNumberDistribution.sample();
+    }
+
+    public int getRandomBaseExecutionTime(){
+        return (int) baseExecutionTimeDistribution.sample();
+    }
 
 }

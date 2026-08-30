@@ -1,5 +1,6 @@
 package com.sim.mongo.gui;
 
+import com.sim.mongo.Simulation;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -7,6 +8,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.util.Pair;
+import org.ja.OperationTypeEnum;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +33,15 @@ public class SimulatorController {
     @FXML private ListView<OperationConfig> operationsListView;
     @FXML private Button addOperationButton;
     @FXML private Button removeOperationButton;
+
+    //run tab
+    @FXML private TextField simulationTimeField;
+    @FXML private Button startSimulationButton;
+    @FXML private Button cancelSimulationButton;
+    @FXML private TextArea simulationLogArea;
+
+    // background thread for simulation
+    private Thread simulationThread;
 
     private final ObservableList<ShardConfig> shards = FXCollections.observableArrayList();
     private final ObservableList<SourceConfig> sources = FXCollections.observableArrayList();
@@ -60,7 +71,108 @@ public class SimulatorController {
         addOperationButton.setOnAction(e -> onAddOperation());
         removeOperationButton.setOnAction(e -> onRemoveOperation());
 
+        startSimulationButton.setOnAction(e -> startSimulation());
+        cancelSimulationButton.setOnAction(e -> cancelSimulation());
+
         refreshAssignedShardChoices();
+    }
+
+    private void appendLog(String line) {
+        Platform.runLater(() -> {
+            simulationLogArea.appendText(line + "\n");
+        });
+    }
+
+    private void startSimulation() {
+        // Prevent multiple concurrent runs
+        if (simulationThread != null && simulationThread.isAlive()) {
+            showAlert("Simulation already running");
+            return;
+        }
+
+        // Parse simulation time
+        long simMs = 60_000L;
+        String t = simulationTimeField.getText();
+        if (t != null && !t.isBlank()) {
+            try {
+                simMs = Long.parseLong(t);
+            } catch (NumberFormatException ex) {
+                showAlert("Invalid simulation time (ms)");
+                return;
+            }
+        }
+
+        // Build sources map for Simulation
+        // NOTE: this requires OperationDefinition setters/constructors (see below)
+        java.util.Map<String, com.sim.mongo.model.Source> sourcesForSim = new java.util.HashMap<>();
+        int sourceId = 0;
+        for (SourceConfig sconf : sources) {
+            // find assigned shard (by name) and map to an org.ja.Shard instance
+            org.ja.Shard targetShard = new org.ja.Shard(); // you may want a constructor or setup nodes
+            // Build lists of OperationDefinition
+            java.util.List<org.ja.OperationDefinition> readDefs = new java.util.ArrayList<>();
+            java.util.List<org.ja.OperationDefinition> writeDefs = new java.util.ArrayList<>();
+            for (OperationConfig opc : sconf.getOperations()) {
+                // convert DistributionConfig -> com.sim.mongo.distributions.Distribution
+                com.sim.mongo.distributions.Distribution opsDist = convertToDistribution(opc.opsPerSecDist);
+                com.sim.mongo.distributions.Distribution docsDist = convertToDistribution(opc.affectedDocsDist);
+                com.sim.mongo.distributions.Distribution baseDist = convertToDistribution(opc.baseExecDist);
+
+                org.ja.OperationDefinition def = new org.ja.OperationDefinition();
+                // These setter methods must be added to OperationDefinition (see suggestion below)
+                def.setId(opc.id);
+                def.setAffectedCollectionName(opc.affectedCollection);
+                def.setType(OperationTypeEnum.FIND); // adjust if you add type selection
+                def.setOperationsPerSecondDistribution(opsDist);
+                def.setAffectedDocNumberDistribution(docsDist);
+                def.setBaseExecutionTimeDistribution(baseDist);
+
+                readDefs.add(def); // or writeDefs depending on type
+            }
+
+            com.sim.mongo.model.Source srcModel = new com.sim.mongo.model.Source(sourceId++, targetShard, readDefs, writeDefs);
+            if (sconf.getClientToNodeTravelTime() != null) {
+                srcModel.setClientToNodeTravelTime(new com.sim.mongo.distributions.ConstantDistribution(sconf.getClientToNodeTravelTime()));
+            }
+            sourcesForSim.put(sconf.getName(), srcModel);
+        }
+
+        // Create and run Simulation in a background thread
+        Simulation sim = new Simulation(sourcesForSim);
+        sim.setSimulationTimeMs(simMs);
+        sim.setup();
+
+        appendLog("Simulation starting (time ms=" + simMs + ")");
+
+        simulationThread = new Thread(() -> {
+            try {
+                sim.run();
+                appendLog("Simulation finished");
+            } catch (Exception ex) {
+                appendLog("Simulation error: " + ex.getMessage());
+            }
+        }, "simulation-thread");
+        simulationThread.start();
+    }
+
+    private void cancelSimulation() {
+        if (simulationThread == null || !simulationThread.isAlive()) {
+            appendLog("No running simulation to cancel");
+            return;
+        }
+        appendLog("Cancelling simulation...");
+        // Clear scheduler and interrupt the thread so run() will exit
+        com.sim.mongo.GlobalScheduler.instance().clear(); // see suggested method below
+        simulationThread.interrupt();
+    }
+
+    private com.sim.mongo.distributions.Distribution convertToDistribution(DistributionConfig d) {
+        switch (d.getType()) {
+            case "Constant": return new com.sim.mongo.distributions.ConstantDistribution(d.getParams()[0]);
+            case "Uniform": return new com.sim.mongo.distributions.UniformDistribution(d.getParams()[0], d.getParams()[1]);
+            case "Exponential": return new com.sim.mongo.distributions.ExponentialDistribution(d.getParams()[0]);
+            default: throw new IllegalArgumentException("Unknown distribution: " + d.getType());
+        }
     }
 
     // --- Shards logic ---
@@ -165,6 +277,7 @@ public class SimulatorController {
         grid.setVgap(8);
 
         TextField idField = new TextField();
+
         idField.setPromptText("operation id");
 
         ChoiceBox<String> collectionChoice = new ChoiceBox<>();

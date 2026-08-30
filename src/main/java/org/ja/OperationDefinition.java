@@ -26,4 +26,12 @@ public class OperationDefinition {
         return (int) baseExecutionTimeDistribution.sample();
     }
 
+
+    public void setId(String id) { this.id = id; }
+    public void setAffectedCollectionName(String name) { this.affectedCollectionName = name; }
+    public void setType(OperationTypeEnum type) { this.type = type; }
+    public void setOperationsPerSecondDistribution(com.sim.mongo.distributions.Distribution d) { this.operationsPerSecondDistribution = d; }
+    public void setAffectedDocNumberDistribution(com.sim.mongo.distributions.Distribution d) { this.affectedDocNumberDistribution = d; }
+    public void setBaseExecutionTimeDistribution(com.sim.mongo.distributions.Distribution d) { this.baseExecutionTimeDistribution = d; }
+
 }

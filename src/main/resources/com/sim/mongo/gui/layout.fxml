@@ -6,7 +6,7 @@
     <center>
         <TabPane>
             <tabs>
-                <Tab text="Shards & Collections">
+                <Tab text="Shards and Collections">
                     <BorderPane>
                         <center>
                             <HBox spacing="16">
@@ -41,7 +41,7 @@
                     </BorderPane>
                 </Tab>
 
-                <Tab text="Sources & Operations">
+                <Tab text="Sources and Operations">
                     <BorderPane>
                         <center>
                             <HBox spacing="16">

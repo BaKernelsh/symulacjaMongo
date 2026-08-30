@@ -5,7 +5,7 @@ import lombok.Getter;
 
 public class Shard {
     @Getter
-    private PrimaryNode primaryNode;
+    private PrimaryNode primaryNode = new PrimaryNode(new ConcurrencyManager());
     private String primaryNodeId;
 
     public void arriveOperation(Operation operation, long arriveTime){

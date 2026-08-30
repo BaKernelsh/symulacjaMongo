@@ -3,6 +3,7 @@ package org.ja;
 import com.sim.mongo.GlobalScheduler;
 import com.sim.mongo.events.ResultArrivesToSourceEvent;
 
+import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Queue;
@@ -11,8 +12,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class ConcurrencyManager {
 
     private Queue<Operation> waitingForTicketQ = new LinkedBlockingQueue<>();
-    private List<Operation> readsExecuting;
-    private List<Operation> writesExecuting;
+    private List<Operation> readsExecuting = new LinkedList<>();
+    private List<Operation> writesExecuting = new LinkedList<>();
     private int concurrentReadTransactions = 128;
     private int concurrentWriteTransactions = 128;
 
@@ -23,6 +24,8 @@ public class ConcurrencyManager {
         this.concurrentReadTransactions = concurrentReadTransactions;
         this.concurrentWriteTransactions = concurrentWriteTransactions;
     }
+
+    public ConcurrencyManager(){}
 
     public void addOperation(Operation operation, long arriveTime){
         if(operation.isRead()) {

@@ -13,9 +13,7 @@ public class Simulation {
     private final Map<String, Source> clients;
 
 
-    public Simulation(int shards, Map<String, Source> clients) {
-
-        this.simulationTimeMs = 60_000; // 1 minute
+    public Simulation(Map<String, Source> clients) {
 
         this.clients = clients;
     }
@@ -32,9 +30,12 @@ public class Simulation {
     }
 
     public void run() {
-
         long end = simulationTimeMs;
         while (!GlobalScheduler.instance().isEmpty()) {
+            if (Thread.currentThread().isInterrupted()) {
+                // allow interrupt-based cancellation
+                break;
+            }
             Event e = GlobalScheduler.instance().next();
             if (e == null) break;
             if (e.getTime() > end) break;
@@ -43,9 +44,6 @@ public class Simulation {
     }
 
     public static void main(String[] args) {
-        //Simulation s = new Simulation(4);
-        // Example: set mean ops/sec per client to 2 using Exponential distribution (each client gets its own distribution)
-        //s.setNoClients(20);
-        //s.run();
+
     }
 }

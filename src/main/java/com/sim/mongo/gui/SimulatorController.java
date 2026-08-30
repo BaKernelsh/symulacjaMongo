@@ -1,123 +1,220 @@
 package com.sim.mongo.gui;
 
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.stage.FileChooser;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 public class SimulatorController {
 
+    // Shards tab
     @FXML private ListView<ShardConfig> shardsListView;
-    @FXML private ListView<SourceConfig> sourcesListView;
-
-    @FXML private TextField newShardNameField;
-    @FXML private TextField newSourceNameField;
-    @FXML private ChoiceBox<String> distributionChoiceBox;
-    @FXML private TextField distributionParamField;
-
     @FXML private Button addShardButton;
+    @FXML private ListView<CollectionConfig> collectionsListView;
+    @FXML private TextField newCollectionNameField;
+    @FXML private TextField newCollectionSizeField;
+    @FXML private Button addCollectionButton;
+
+    // Sources tab
+    @FXML private ListView<SourceConfig> sourcesListView;
     @FXML private Button addSourceButton;
-    @FXML private Button assignShardButton;
-    @FXML private Button saveButton;
+    @FXML private ChoiceBox<String> assignShardChoiceBox;
+    @FXML private TextField clientToNodeTravelTimeField;
+    @FXML private Button applySourceSettingsButton;
+    @FXML private ListView<OperationConfig> operationsListView;
+    @FXML private Button addOperationButton;
+    @FXML private Button removeOperationButton;
 
     private final ObservableList<ShardConfig> shards = FXCollections.observableArrayList();
     private final ObservableList<SourceConfig> sources = FXCollections.observableArrayList();
 
     @FXML
     public void initialize() {
+        // shards
         shardsListView.setItems(shards);
+        shardsListView.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> onShardSelected(newV));
+        addShardButton.setOnAction(e -> onAddShard());
+
+        // collections
+        collectionsListView.setItems(FXCollections.observableArrayList());
+        addCollectionButton.setOnAction(e -> onAddCollection());
+
+        // sources
         sourcesListView.setItems(sources);
+        sourcesListView.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> onSourceSelected(newV));
+        addSourceButton.setOnAction(e -> onAddSource());
 
-        distributionChoiceBox.getItems().addAll("Constant","Uniform","Exponential");
-        distributionChoiceBox.setValue("Constant");
+        // source controls
+        assignShardChoiceBox.setItems(FXCollections.observableArrayList());
+        applySourceSettingsButton.setOnAction(e -> onApplySourceSettings());
 
-        addShardButton.setOnAction(e -> addShard());
-        addSourceButton.setOnAction(e -> addSource());
-        assignShardButton.setOnAction(e -> assignShardToSelectedSource());
-        saveButton.setOnAction(e -> saveConfigToFile());
+        // operations
+        operationsListView.setItems(FXCollections.observableArrayList());
+        addOperationButton.setOnAction(e -> onAddOperation());
+        removeOperationButton.setOnAction(e -> onRemoveOperation());
 
-        shardsListView.setCellFactory(lv -> new ListCell<>(){
-            @Override
-            protected void updateItem(ShardConfig item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getName());
+        // sample: populate with one shard/source for convenience
+        // (can be removed)
+        //shards.add(new ShardConfig("shard-0"));
+        //sources.add(new SourceConfig("client-0"));
+
+        refreshAssignedShardChoices();
+    }
+
+    // --- Shards logic ---
+    private void onAddShard(){
+        TextInputDialog d = new TextInputDialog();
+        d.setTitle("Add Shard");
+        d.setHeaderText("Enter shard name");
+        d.setContentText("Name:");
+        Optional<String> r = d.showAndWait();
+        r.ifPresent(name -> {
+            String n = name.trim();
+            if (!n.isEmpty()){
+                ShardConfig s = new ShardConfig(n);
+                shards.add(s);
+                refreshAssignedShardChoices();
             }
         });
-
-        sourcesListView.setCellFactory(lv -> new ListCell<>(){
-            @Override
-            protected void updateItem(SourceConfig item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getDisplay());
-            }
-        });
     }
 
-    private void addShard() {
-        String name = newShardNameField.getText();
-        if (name == null || name.isBlank()) {
-            showAlert("Shard name required");
+    private void onShardSelected(ShardConfig shard){
+        if (shard == null){
+            collectionsListView.setItems(FXCollections.observableArrayList());
             return;
         }
-        shards.add(new ShardConfig(name.trim()));
-        newShardNameField.clear();
+        collectionsListView.setItems(FXCollections.observableArrayList(shard.getCollections()));
     }
 
-    private void addSource() {
-        String name = newSourceNameField.getText();
-        if (name == null || name.isBlank()) {
-            showAlert("Source name required");
-            return;
-        }
-        // attach default distribution from controls
-        DistributionConfig dist = new DistributionConfig(distributionChoiceBox.getValue(), distributionParamField.getText());
-        sources.add(new SourceConfig(name.trim(), dist));
-        newSourceNameField.clear();
-    }
-
-    private void assignShardToSelectedSource() {
-        SourceConfig src = sourcesListView.getSelectionModel().getSelectedItem();
+    private void onAddCollection(){
         ShardConfig shard = shardsListView.getSelectionModel().getSelectedItem();
-        if (src == null || shard == null) {
-            showAlert("Select both a source and a shard to assign");
+        if (shard == null){ showAlert("Select a shard first"); return; }
+        String name = newCollectionNameField.getText();
+        String sizeText = newCollectionSizeField.getText();
+        if (name == null || name.isBlank()){ showAlert("Collection name required"); return; }
+        int size = 0;
+        try{ size = Integer.parseInt(sizeText); }catch(Exception ex){ showAlert("Invalid size (integer required)"); return; }
+        CollectionConfig c = new CollectionConfig(name.trim(), size);
+        shard.getCollections().add(c);
+        collectionsListView.setItems(FXCollections.observableArrayList(shard.getCollections()));
+        newCollectionNameField.clear(); newCollectionSizeField.clear();
+    }
+
+    // --- Sources logic ---
+    private void onAddSource(){
+        TextInputDialog d = new TextInputDialog();
+        d.setTitle("Add Source");
+        d.setHeaderText("Enter source (client) name");
+        d.setContentText("Name:");
+        Optional<String> r = d.showAndWait();
+        r.ifPresent(name -> {
+            String n = name.trim();
+            if (!n.isEmpty()){
+                SourceConfig s = new SourceConfig(n);
+                sources.add(s);
+            }
+        });
+    }
+
+    private void onSourceSelected(SourceConfig src){
+        if (src == null){
+            assignShardChoiceBox.getSelectionModel().clearSelection();
+            clientToNodeTravelTimeField.clear();
+            operationsListView.setItems(FXCollections.observableArrayList());
             return;
         }
-        src.setAssignedShard(shard.getName());
+        // populate assigned shard choice box
+        refreshAssignedShardChoices();
+        if (src.getAssignedShard() != null) assignShardChoiceBox.setValue(src.getAssignedShard());
+        clientToNodeTravelTimeField.setText(src.getClientToNodeTravelTime() == null ? "" : String.valueOf(src.getClientToNodeTravelTime()));
+        operationsListView.setItems(FXCollections.observableArrayList(src.getOperations()));
+    }
+
+    private void onApplySourceSettings(){
+        SourceConfig src = sourcesListView.getSelectionModel().getSelectedItem();
+        if (src == null){ showAlert("Select a source first"); return; }
+        String shardName = assignShardChoiceBox.getValue();
+        src.setAssignedShard(shardName);
+        // clientToNodeTravelTime
+        String t = clientToNodeTravelTimeField.getText();
+        if (t != null && !t.isBlank()){
+            try{
+                double val = Double.parseDouble(t);
+                src.setClientToNodeTravelTime(val);
+            }catch(NumberFormatException ex){ showAlert("Invalid travel time (number required)"); return; }
+        }
+        // refresh lists
         sourcesListView.refresh();
     }
 
-    private void saveConfigToFile() {
-        FileChooser chooser = new FileChooser();
-        chooser.setInitialFileName("simulation-config.txt");
-        Path path = chooser.showSaveDialog(saveButton.getScene().getWindow()) == null ? null : chooser.showSaveDialog(saveButton.getScene().getWindow()).toPath();
-        if (path == null) return;
+    private void onAddOperation(){
+        SourceConfig src = sourcesListView.getSelectionModel().getSelectedItem();
+        if (src == null){ showAlert("Select a source first"); return; }
+        // Prompt sequence for operation fields
+        TextInputDialog idDialog = new TextInputDialog();
+        idDialog.setTitle("Add Operation");
+        idDialog.setHeaderText("Operation id/name");
+        idDialog.setContentText("id:");
+        Optional<String> idOpt = idDialog.showAndWait();
+        if (idOpt.isEmpty()) return;
+        String id = idOpt.get().trim();
+        if (id.isEmpty()){ showAlert("Operation id required"); return; }
 
-        List<String> lines = new ArrayList<>();
-        lines.add("shards:");
-        for (ShardConfig s : shards) lines.add("  - " + s.getName());
-        lines.add("");
-        lines.add("sources:");
-        for (SourceConfig s : sources) {
-            lines.add("  - name: " + s.getName());
-            lines.add("    assignedShard: " + (s.getAssignedShard() == null ? "" : s.getAssignedShard()));
-            lines.add("    distribution: " + s.getDistribution().getType() + "(" + s.getDistribution().getParam() + ")");
-        }
+        ChoiceDialog<String> typeDialog = new ChoiceDialog<>("READ", "READ", "WRITE");
+        typeDialog.setTitle("Operation Type");
+        typeDialog.setHeaderText("Select operation type");
+        Optional<String> typeOpt = typeDialog.showAndWait();
+        if (typeOpt.isEmpty()) return;
+        String type = typeOpt.get();
 
-        try {
-            Files.write(path, lines, StandardCharsets.UTF_8);
-            showAlert("Saved configuration to " + path.toString());
-        } catch (IOException e) {
-            showAlert("Failed to save file: " + e.getMessage());
-        }
+        TextInputDialog opsPerSecDialog = new TextInputDialog("1");
+        opsPerSecDialog.setTitle("Operations per second");
+        opsPerSecDialog.setHeaderText("Mean operations per second");
+        opsPerSecDialog.setContentText("ops/sec:");
+        Optional<String> opsOpt = opsPerSecDialog.showAndWait();
+        if (opsOpt.isEmpty()) return;
+        double ops = 1.0; try{ ops = Double.parseDouble(opsOpt.get()); }catch(Exception ex){ showAlert("Invalid ops/sec"); return; }
+
+        TextInputDialog affectedDocsDialog = new TextInputDialog("1");
+        affectedDocsDialog.setTitle("Affected docs");
+        affectedDocsDialog.setHeaderText("Affected document count (mean)");
+        affectedDocsDialog.setContentText("docs:");
+        Optional<String> docsOpt = affectedDocsDialog.showAndWait();
+        if (docsOpt.isEmpty()) return;
+        int docs = 1; try{ docs = Integer.parseInt(docsOpt.get()); }catch(Exception ex){ showAlert("Invalid docs number"); return; }
+
+        TextInputDialog baseExecDialog = new TextInputDialog("1");
+        baseExecDialog.setTitle("Base execution time (ms)");
+        baseExecDialog.setHeaderText("Base execution time in ms (mean)");
+        baseExecDialog.setContentText("ms:");
+        Optional<String> baseOpt = baseExecDialog.showAndWait();
+        if (baseOpt.isEmpty()) return;
+        double baseMs = 1.0; try{ baseMs = Double.parseDouble(baseOpt.get()); }catch(Exception ex){ showAlert("Invalid base exec time"); return; }
+
+        OperationConfig oc = new OperationConfig(id, type, ops, docs, baseMs);
+        src.getOperations().add(oc);
+        operationsListView.setItems(FXCollections.observableArrayList(src.getOperations()));
+    }
+
+    private void onRemoveOperation(){
+        SourceConfig src = sourcesListView.getSelectionModel().getSelectedItem();
+        OperationConfig op = operationsListView.getSelectionModel().getSelectedItem();
+        if (src == null || op == null){ showAlert("Select source and operation"); return; }
+        src.getOperations().remove(op);
+        operationsListView.setItems(FXCollections.observableArrayList(src.getOperations()));
+    }
+
+    private void refreshAssignedShardChoices(){
+        List<String> names = new ArrayList<>();
+        for (ShardConfig s : shards) names.add(s.getName());
+        Platform.runLater(() -> {
+            assignShardChoiceBox.setItems(FXCollections.observableArrayList(names));
+        });
     }
 
     private void showAlert(String msg){
@@ -128,28 +225,46 @@ public class SimulatorController {
     // --- Simple configuration POJOs used only by the GUI ---
     public static class ShardConfig {
         private final String name;
+        private final List<CollectionConfig> collections = new ArrayList<>();
         public ShardConfig(String name){ this.name = name; }
         public String getName(){ return name; }
+        public List<CollectionConfig> getCollections(){ return collections; }
         @Override public String toString(){ return name; }
+    }
+
+    public static class CollectionConfig {
+        private final String name;
+        private final int size;
+        public CollectionConfig(String name, int size){ this.name = name; this.size = size; }
+        public String getName(){ return name; }
+        public int getSize(){ return size; }
+        @Override public String toString(){ return name + " (" + size + " docs)"; }
     }
 
     public static class SourceConfig {
         private final String name;
-        private final DistributionConfig distribution;
         private String assignedShard;
-        public SourceConfig(String name, DistributionConfig distribution){ this.name = name; this.distribution = distribution; }
+        private Double clientToNodeTravelTime;
+        private final List<OperationConfig> operations = new ArrayList<>();
+        public SourceConfig(String name){ this.name = name; }
         public String getName(){ return name; }
-        public DistributionConfig getDistribution(){ return distribution; }
-        public void setAssignedShard(String s){ this.assignedShard = s; }
         public String getAssignedShard(){ return assignedShard; }
-        public String getDisplay(){ return name + (assignedShard == null ? "" : " -> " + assignedShard); }
+        public void setAssignedShard(String s){ this.assignedShard = s; }
+        public Double getClientToNodeTravelTime(){ return clientToNodeTravelTime; }
+        public void setClientToNodeTravelTime(Double v){ this.clientToNodeTravelTime = v; }
+        public List<OperationConfig> getOperations(){ return operations; }
+        @Override public String toString(){ return name + (assignedShard == null ? "" : " -> " + assignedShard); }
     }
 
-    public static class DistributionConfig {
+    public static class OperationConfig {
+        private final String id;
         private final String type;
-        private final String param;
-        public DistributionConfig(String type, String param){ this.type = type; this.param = param; }
-        public String getType(){ return type; }
-        public String getParam(){ return param; }
+        private final double opsPerSec;
+        private final int affectedDocs;
+        private final double baseExecMs;
+        public OperationConfig(String id, String type, double opsPerSec, int affectedDocs, double baseExecMs){
+            this.id = id; this.type = type; this.opsPerSec = opsPerSec; this.affectedDocs = affectedDocs; this.baseExecMs = baseExecMs;
+        }
+        @Override public String toString(){ return id + " [" + type + "] ops/s=" + opsPerSec + " docs=" + affectedDocs + " baseMs=" + baseExecMs; }
     }
 }

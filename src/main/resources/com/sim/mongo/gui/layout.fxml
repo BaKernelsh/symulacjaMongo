@@ -4,38 +4,85 @@
 <?import javafx.scene.layout.*?>
 <BorderPane xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.sim.mongo.gui.SimulatorController">
     <center>
-        <HBox spacing="20" padding="16">
-            <VBox spacing="8" prefWidth="300">
-                <Label text="Shards" />
-                <ListView fx:id="shardsListView" prefHeight="400" />
-                <HBox spacing="4">
-                    <TextField fx:id="newShardNameField" promptText="shard name" />
-                    <Button fx:id="addShardButton" text="Add" />
-                </HBox>
-            </VBox>
+        <TabPane>
+            <tabs>
+                <Tab text="Shards & Collections">
+                    <BorderPane>
+                        <center>
+                            <HBox spacing="16">
+                                <padding>
+                                    <Insets top="12" right="12" bottom="12" left="12"/>
+                                </padding>
 
-            <VBox spacing="8" prefWidth="560">
-                <Label text="Sources" />
-                <ListView fx:id="sourcesListView" prefHeight="280" />
+                                <VBox spacing="8" prefWidth="300">
+                                    <Label text="Shards" />
+                                    <ListView fx:id="shardsListView" prefHeight="400" />
+                                    <HBox spacing="8">
+                                        <Button fx:id="addShardButton" text="Add Shard" />
+                                    </HBox>
+                                </VBox>
 
-                <GridPane hgap="8" vgap="8">
-                    <Label text="Source name:" GridPane.rowIndex="0" GridPane.columnIndex="0" />
-                    <TextField fx:id="newSourceNameField" GridPane.rowIndex="0" GridPane.columnIndex="1" />
+                                <VBox spacing="8" prefWidth="560">
+                                    <Label text="Collections (selected shard)" />
+                                    <ListView fx:id="collectionsListView" prefHeight="320" />
 
-                    <Label text="Distribution:" GridPane.rowIndex="1" GridPane.columnIndex="0" />
-                    <ChoiceBox fx:id="distributionChoiceBox" GridPane.rowIndex="1" GridPane.columnIndex="1" />
+                                    <GridPane hgap="8" vgap="8">
+                                        <Label text="Collection name:" GridPane.rowIndex="0" GridPane.columnIndex="0" />
+                                        <TextField fx:id="newCollectionNameField" GridPane.rowIndex="0" GridPane.columnIndex="1" />
 
-                    <Label text="Param (e.g. mean)" GridPane.rowIndex="2" GridPane.columnIndex="0" />
-                    <TextField fx:id="distributionParamField" GridPane.rowIndex="2" GridPane.columnIndex="1" />
+                                        <Label text="Size (docs):" GridPane.rowIndex="1" GridPane.columnIndex="0" />
+                                        <TextField fx:id="newCollectionSizeField" GridPane.rowIndex="1" GridPane.columnIndex="1" />
 
-                    <Button fx:id="addSourceButton" text="Add Source" GridPane.rowIndex="3" GridPane.columnIndex="1" />
-                </GridPane>
+                                        <Button fx:id="addCollectionButton" text="Add Collection" GridPane.rowIndex="2" GridPane.columnIndex="1" />
+                                    </GridPane>
+                                </VBox>
+                            </HBox>
+                        </center>
+                    </BorderPane>
+                </Tab>
 
-                <HBox spacing="8" padding="8">
-                    <Button fx:id="assignShardButton" text="Assign selected shard to selected source" />
-                    <Button fx:id="saveButton" text="Save config..." />
-                </HBox>
-            </VBox>
-        </HBox>
+                <Tab text="Sources & Operations">
+                    <BorderPane>
+                        <center>
+                            <HBox spacing="16">
+                                <padding>
+                                    <Insets top="12" right="12" bottom="12" left="12"/>
+                                </padding>
+
+                                <VBox spacing="8" prefWidth="300">
+                                    <Label text="Sources" />
+                                    <ListView fx:id="sourcesListView" prefHeight="400" />
+                                    <HBox spacing="8">
+                                        <Button fx:id="addSourceButton" text="Add Source" />
+                                    </HBox>
+                                </VBox>
+
+                                <VBox spacing="8" prefWidth="560">
+                                    <Label text="Selected Source" />
+
+                                    <GridPane hgap="8" vgap="8">
+                                        <Label text="Assigned Shard:" GridPane.rowIndex="0" GridPane.columnIndex="0" />
+                                        <ChoiceBox fx:id="assignShardChoiceBox" GridPane.rowIndex="0" GridPane.columnIndex="1" />
+
+                                        <Label text="clientToNodeTravelTime (ms):" GridPane.rowIndex="1" GridPane.columnIndex="0" />
+                                        <TextField fx:id="clientToNodeTravelTimeField" GridPane.rowIndex="1" GridPane.columnIndex="1" />
+
+                                        <Button fx:id="applySourceSettingsButton" text="Apply" GridPane.rowIndex="2" GridPane.columnIndex="1" />
+                                    </GridPane>
+
+                                    <Separator />
+                                    <Label text="Operations (this source)" />
+                                    <ListView fx:id="operationsListView" prefHeight="200" />
+                                    <HBox spacing="8">
+                                        <Button fx:id="addOperationButton" text="Add Operation" />
+                                        <Button fx:id="removeOperationButton" text="Remove Selected Operation" />
+                                    </HBox>
+                                </VBox>
+                            </HBox>
+                        </center>
+                    </BorderPane>
+                </Tab>
+            </tabs>
+        </TabPane>
     </center>
 </BorderPane>

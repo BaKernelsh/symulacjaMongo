@@ -82,6 +82,33 @@
                         </center>
                     </BorderPane>
                 </Tab>
+
+                <Tab text="Run Simulation">
+                    <BorderPane>
+                        <center>
+                            <HBox spacing="16">
+                                <padding>
+                                    <Insets top="12" right="12" bottom="12" left="12"/>
+                                </padding>
+
+                                <VBox spacing="8" prefWidth="860">
+                                    <Label text="Simulation Controls" />
+                                    <GridPane hgap="8" vgap="8">
+                                        <Label text="Simulation time (ms):" GridPane.rowIndex="0" GridPane.columnIndex="0" />
+                                        <TextField fx:id="simulationTimeField" GridPane.rowIndex="0" GridPane.columnIndex="1" />
+
+                                        <Button fx:id="startSimulationButton" text="Start" GridPane.rowIndex="1" GridPane.columnIndex="1" />
+                                        <Button fx:id="cancelSimulationButton" text="Cancel" GridPane.rowIndex="1" GridPane.columnIndex="2" />
+                                    </GridPane>
+
+                                    <Separator />
+                                    <Label text="Simulation log" />
+                                    <TextArea fx:id="simulationLogArea" prefHeight="300" wrapText="true" />
+                                </VBox>
+                            </HBox>
+                        </center>
+                    </BorderPane>
+                </Tab>
             </tabs>
         </TabPane>
     </center>

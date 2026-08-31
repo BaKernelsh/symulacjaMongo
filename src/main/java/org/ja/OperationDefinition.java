@@ -4,6 +4,7 @@ import com.sim.mongo.distributions.Distribution;
 import lombok.Getter;
 
 public class OperationDefinition {
+    @Getter
     private String id;
     @Getter
     private String affectedCollectionName;

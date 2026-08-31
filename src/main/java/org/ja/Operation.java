@@ -24,19 +24,21 @@ public class Operation {
     //how much time it takes to travel from client to mongos router
     @Getter
     private long clientToNodeTravelTime;
+    @Getter
     //time of creation at client
     private long creationTime;
     private long nodeReachedTime;
     //time at which mongodb started executing operation after queuing etc.
-
+    @Getter
     private long executionStartTime;
-
+    @Getter
     private long baseExecutionTimeMs;
     private long executionTime;
     @Getter
     @Setter
     private OperationEndEvent endEvent;
     @Setter
+    @Getter
     private long endTime;
     @Getter
     private long resultReachedSourceTime;
@@ -129,5 +131,9 @@ public class Operation {
         endEvent.cancel();
         endEvent = new OperationEndEvent(this, executionStartTime + executionTime);
         GlobalScheduler.instance().schedule(endEvent);
+    }
+
+    public String getID(){
+        return operationDefinition.getId();
     }
 }

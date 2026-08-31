@@ -3,6 +3,7 @@ package com.sim.mongo.events;
 import com.sim.mongo.Event;
 import lombok.Getter;
 import org.ja.Operation;
+import org.ja.statistics.Statistics;
 
 public class OperationEndEvent extends Event {
     @Getter
@@ -16,8 +17,11 @@ public class OperationEndEvent extends Event {
 
     @Override
     public void process() {
-        if(!rescheduled)
+        if(!rescheduled) {
             operation.endOperationSuccessfully(time);
+
+            Statistics.instance().recordLockWaitTime(operation);
+        }
     }
 
     public void cancel(){

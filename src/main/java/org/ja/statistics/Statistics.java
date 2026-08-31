@@ -1,6 +1,8 @@
-package org.ja;
+package org.ja.statistics;
 
 import lombok.Getter;
+import org.ja.Operation;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -12,15 +14,59 @@ import java.util.concurrent.ConcurrentHashMap;
  * All metrics tracked both globally and per operation type
  */
 public class Statistics {
+    private static Statistics instance;
+
+    public static synchronized Statistics instance(){
+        if(instance==null) instance = new Statistics();
+        return instance;
+    }
+
+
+    private Locking lockingStatistics = new Locking();
+
+    public void recordLockWaitTime(Operation operation) {
+        lockingStatistics.recordLockWaitTime(operation);
+    }
+
+    public long getTotalLockWaitTimeAllOps() {
+        return lockingStatistics.getTotalLockWaitTimeAllOps();
+    }
+
+    public Stats getLockWaitTimeStatsAllOps() {
+        return lockingStatistics.getLockWaitTimeStatsAllOps();
+    }
+
+    public Map<String, Stats> getLockWaitTimeStatsByOperation() {
+        return lockingStatistics.getLockWaitTimeStatsByOperation();
+    }
+
+    public double getPercentageOfOpsWaitedForLocksAllOps() {
+        return lockingStatistics.getPercentageOfOpsWaitedForLocksAllOps(allResponseTimes.size());
+    }
+
+    public Map<String, Double> getPercentageOfOpsWaitedForLocksByOperation() {
+        calcOperationCounts();
+        return lockingStatistics.getPercentageOfOpsWaitedForLocksByOperation(opIDToCount);
+    }
+
+    Map<String, Integer> opIDToCount;
+    private void calcOperationCounts(){
+        if(opIDToCount==null) {
+            opIDToCount = new HashMap<>();
+            responseTimesByOperation.forEach((opID, respTimes) -> {
+                opIDToCount.put(opID, respTimes.size());
+            });
+        }
+    }
+
+
+
+
 
     // Response time tracking (from creation to result reaching source)
     private List<Long> allResponseTimes = Collections.synchronizedList(new ArrayList<>());
     private Map<String, List<Long>> responseTimesByOperation = new ConcurrentHashMap<>();
 
-    // Lock wait time tracking
-    private Map<Operation, Long> operationLockWaitTimes = new ConcurrentHashMap<>();
-    private List<Long> allLockWaitTimes = Collections.synchronizedList(new ArrayList<>());
-    private Map<String, List<Long>> lockWaitTimesByOperation = new ConcurrentHashMap<>();
 
     // Throughput tracking (operations ended per second)
     @Getter
@@ -31,40 +77,24 @@ public class Statistics {
     @Getter
     private long totalOperationsCompleted = 0;
 
-    private final Set<Operation> operationsThatWaitedForLocks = Collections.synchronizedSet(new HashSet<>());
-
-
-    /**
-     * Record an operation's lock wait time when a conflict occurs
-     */
-    public void recordLockWaitTime(Operation operation, long waitTimeMs) {
-        long currentWait = operationLockWaitTimes.getOrDefault(operation, 0L);
-        operationLockWaitTimes.put(operation, currentWait + waitTimeMs);
-        allLockWaitTimes.add(waitTimeMs);
-
-        String opType = operation.getOperationDefinition().getType().toString();
-        lockWaitTimesByOperation.computeIfAbsent(opType, k -> Collections.synchronizedList(new ArrayList<>()))
-                .add(waitTimeMs);
-
-        operationsThatWaitedForLocks.add(operation);
-    }
 
     /**
      * Record operation completion with response time (from source perspective)
      * Response time = resultReachedSourceTime - creationTime
      */
-    public void recordOperationCompletion(Operation operation, long responseTimeMs) {
+    public void recordOperationCompletion(Operation operation) {
+        long responseTimeMs = operation.getResultReachedSourceTime() - operation.getCreationTime();
         allResponseTimes.add(responseTimeMs);
 
-        String opType = operation.getOperationDefinition().getType().toString();
-        responseTimesByOperation.computeIfAbsent(opType, k -> Collections.synchronizedList(new ArrayList<>()))
+
+        responseTimesByOperation.computeIfAbsent(operation.getID(), k -> Collections.synchronizedList(new ArrayList<>()))
                 .add(responseTimeMs);
 
         // Track throughput
         long secondStart = getSecondBucket(operation.getCreationTime());
         throughputBySecond.merge(secondStart, 1, Integer::sum);
         throughputBySecondPerOperation.computeIfAbsent(secondStart, k -> new ConcurrentHashMap<>())
-                .merge(opType, 1, Integer::sum);
+                .merge(operation.getID(), 1, Integer::sum);
 
         totalOperationsCompleted++;
     }
@@ -101,59 +131,7 @@ public class Statistics {
         return new ResponseTimeStats(opTimes);
     }
 
-    /**
-     * Get total lock wait time for all operations
-     */
-    public long getTotalLockWaitTimeAllOps() {
-        return allLockWaitTimes.stream().mapToLong(Long::longValue).sum();
-    }
 
-    /**
-     * Get total lock wait time for a specific operation type
-     */
-    public long getTotalLockWaitTimeByOperation(String operationType) {
-        List<Long> opTimes = lockWaitTimesByOperation.getOrDefault(operationType, new ArrayList<>());
-        return opTimes.stream().mapToLong(Long::longValue).sum();
-    }
-
-    /**
-     * Get average lock wait time for all operations
-     */
-    public double getAverageLockWaitTimeAllOps() {
-        if (allLockWaitTimes.isEmpty()) return 0.0;
-        return (double) getTotalLockWaitTimeAllOps() / allLockWaitTimes.size();
-    }
-
-    /**
-     * Get average lock wait time for a specific operation type
-     */
-    public double getAverageLockWaitTimeByOperation(String operationType) {
-        List<Long> opTimes = lockWaitTimesByOperation.getOrDefault(operationType, new ArrayList<>());
-        if (opTimes.isEmpty()) return 0.0;
-        return (double) opTimes.stream().mapToLong(Long::longValue).sum() / opTimes.size();
-    }
-
-    /**
-     * Get percentage of operations that waited for locks (all operations)
-     */
-    public double getPercentageOfOpsWaitedForLocksAllOps() {
-        if (totalOperationsCompleted == 0) return 0.0;
-        return (double) operationsThatWaitedForLocks.size() / totalOperationsCompleted * 100.0;
-    }
-
-    /**
-     * Get percentage of operations that waited for locks (by operation type)
-     */
-    public double getPercentageOfOpsWaitedForLocksByOperation(String operationType) {
-        long countByOp = responseTimesByOperation.getOrDefault(operationType, new ArrayList<>()).size();
-        if (countByOp == 0) return 0.0;
-
-        long waitedByOp = operationsThatWaitedForLocks.stream()
-                .filter(op -> op.getOperationDefinition().getType().toString().equals(operationType))
-                .count();
-
-        return (double) waitedByOp / countByOp * 100.0;
-    }
 
     /**
      * Get throughput (operations per second) for all operations

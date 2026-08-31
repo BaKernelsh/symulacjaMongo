@@ -18,8 +18,6 @@ public class ConcurrencyManager {
     private int concurrentWriteTransactions = 128;
 
 
-    private List<Transaction> transactions;
-
     public ConcurrencyManager(int concurrentReadTransactions, int concurrentWriteTransactions){
         this.concurrentReadTransactions = concurrentReadTransactions;
         this.concurrentWriteTransactions = concurrentWriteTransactions;

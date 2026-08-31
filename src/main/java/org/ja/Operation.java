@@ -116,9 +116,10 @@ public class Operation {
     public void endOperationSuccessfully(long endTime){
         source.getTargetShardPrimaryNode().endOperationSuccessfully(this, endTime);
     }
-    public void setExecutionStartTime(long time){
+    public void setExecutionStartTimeAndScheduleEndEvent(long time){
         executionStartTime = time;
         endEvent = new OperationEndEvent(this, executionTime + baseExecutionTimeMs);
+        GlobalScheduler.instance().schedule(endEvent);
     }
 
 

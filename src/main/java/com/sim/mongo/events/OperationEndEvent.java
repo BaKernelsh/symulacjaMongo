@@ -20,7 +20,10 @@ public class OperationEndEvent extends Event {
         if(!rescheduled) {
             operation.endOperationSuccessfully(time);
 
+            System.out.println("operation end event - adding lock time: " + Long.toString(operation.getEndTime() - (operation.getExecutionStartTime() + operation.getBaseExecutionTimeMs())));
             Statistics.instance().recordLockWaitTime(operation);
+            System.out.println("operation end event - adding response time: " + Long.toString(operation.getResultReachedSourceTime() - operation.getCreationTime()));
+            Statistics.instance().recordOperationCompletion(operation);
         }
     }
 

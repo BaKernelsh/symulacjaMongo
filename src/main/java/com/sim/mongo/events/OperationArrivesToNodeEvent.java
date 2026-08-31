@@ -14,6 +14,7 @@ public class OperationArrivesToNodeEvent extends Event {
 
     @Override
     public void process() {
+        System.out.println("process operation arrives at node event");
         operation.arriveOperationToShard(time);
     }
 }

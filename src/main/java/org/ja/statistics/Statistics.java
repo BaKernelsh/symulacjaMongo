@@ -60,7 +60,14 @@ public class Statistics {
     }
 
 
-
+    public void clear(){
+        lockingStatistics = new Locking();
+        allResponseTimes = Collections.synchronizedList(new ArrayList<>());
+        responseTimesByOperation = new ConcurrentHashMap<>();
+        throughputBySecond = new ConcurrentHashMap<>();
+        throughputBySecondPerOperation = new ConcurrentHashMap<>();
+        totalOperationsCompleted = 0;
+    }
 
 
     // Response time tracking (from creation to result reaching source)
@@ -179,7 +186,7 @@ public class Statistics {
     /**
      * Get all recorded operation types
      */
-    public Set<String> getRecordedOperationTypes() {
+    public Set<String> getRecordedOperationIDs() {
         return new HashSet<>(responseTimesByOperation.keySet());
     }
 

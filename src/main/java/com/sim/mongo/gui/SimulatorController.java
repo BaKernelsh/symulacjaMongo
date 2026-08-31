@@ -7,10 +7,9 @@ import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
-import javafx.util.Pair;
 import org.ja.OperationTypeEnum;
 import org.ja.Shard;
-import org.ja.Statistics;
+import org.ja.statistics.Statistics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,7 +52,7 @@ public class SimulatorController {
     private Thread simulationThread;
     
     // Statistics reference
-    private Statistics statistics;
+    private final Statistics statistics = Statistics.instance();
 
     private final ObservableList<ShardConfig> shards = FXCollections.observableArrayList();
     private final ObservableList<SourceConfig> sources = FXCollections.observableArrayList();
@@ -88,7 +87,7 @@ public class SimulatorController {
 
         // Statistics tab initialization
         operationTypesListView.setItems(FXCollections.observableArrayList());
-        operationTypesListView.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> onOperationTypeSelected(newV));
+        operationTypesListView.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> onOperationIDSelected(newV));
         refreshStatsButton.setOnAction(e -> refreshStatistics());
 
         refreshAssignedShardChoices();
@@ -167,11 +166,12 @@ public class SimulatorController {
 
         simulationThread = new Thread(() -> {
             try {
+                statistics.clear();
                 sim.run();
                 appendLog("Simulation finished");
                 // Store statistics reference for UI display
-                statistics = sim.getStatistics();
-                refreshStatistics();
+                //statistics = sim.getStatistics();
+                //refreshStatistics();
             } catch (Exception ex) {
                 System.out.println("Simulation error:");
                 ex.printStackTrace(System.out);
@@ -216,10 +216,10 @@ public class SimulatorController {
 
         Platform.runLater(() -> {
             // Create list of operation types + "ALL OPERATIONS"
-            java.util.Set<String> opTypes = statistics.getRecordedOperationTypes();
+            java.util.Set<String> opIDs = statistics.getRecordedOperationIDs();
             List<String> displayList = new ArrayList<>();
             displayList.add("ALL OPERATIONS");
-            displayList.addAll(opTypes.stream().sorted().collect(Collectors.toList()));
+            displayList.addAll(opIDs.stream().sorted().collect(Collectors.toList()));
             
             operationTypesListView.setItems(FXCollections.observableArrayList(displayList));
             
@@ -230,8 +230,8 @@ public class SimulatorController {
         });
     }
 
-    private void onOperationTypeSelected(String operationType) {
-        if (statistics == null || operationType == null) {
+    private void onOperationIDSelected(String opID) {
+        if (opID == null) {
             statisticsTextArea.clear();
             return;
         }
@@ -239,7 +239,7 @@ public class SimulatorController {
         Platform.runLater(() -> {
             StringBuilder sb = new StringBuilder();
             
-            if ("ALL OPERATIONS".equals(operationType)) {
+            if ("ALL OPERATIONS".equals(opID)) {
                 sb.append("=== STATISTICS FOR ALL OPERATIONS ===\n\n");
                 
                 // Response time stats
@@ -259,10 +259,10 @@ public class SimulatorController {
                 // Lock wait time stats
                 sb.append("--- LOCK WAIT TIME STATS ---\n");
                 long totalLockWait = statistics.getTotalLockWaitTimeAllOps();
-                double avgLockWait = statistics.getAverageLockWaitTimeAllOps();
+                //double avgLockWait = statistics.getAverageLockWaitTimeAllOps();
                 double percentWaited = statistics.getPercentageOfOpsWaitedForLocksAllOps();
                 sb.append(String.format("Total Lock Wait Time: %d ms\n", totalLockWait));
-                sb.append(String.format("Average Lock Wait Time: %.2f ms\n", avgLockWait));
+                //sb.append(String.format("Average Lock Wait Time: %.2f ms\n", avgLockWait));
                 sb.append(String.format("Percentage of Ops That Waited for Locks: %.2f%%\n", percentWaited));
                 sb.append("\n");
                 
@@ -284,16 +284,16 @@ public class SimulatorController {
                 
             } else {
                 // Single operation type stats
-                sb.append("=== STATISTICS FOR OPERATION: ").append(operationType).append(" ===\n\n");
+                sb.append("=== STATISTICS FOR OPERATION: ").append(opID).append(" ===\n\n");
                 
                 // Response time stats
                 sb.append("--- RESPONSE TIME STATS ---\n");
-                Statistics.ResponseTimeStats rtStats = statistics.getResponseTimeStatsByOperation(operationType);
+                Statistics.ResponseTimeStats rtStats = statistics.getResponseTimeStatsByOperation(opID);
                 sb.append(rtStats.toString()).append("\n\n");
                 
                 // Percentiles
                 double[] percentiles = {50, 95, 99, 99.9};
-                java.util.Map<Double, Long> percentileMap = statistics.getResponseTimePercentilesByOperation(operationType, percentiles);
+                java.util.Map<Double, Long> percentileMap = statistics.getResponseTimePercentilesByOperation(opID, percentiles);
                 sb.append("Response Time Percentiles (ms):\n");
                 for (double p : percentiles) {
                     sb.append(String.format("  p%.1f: %d ms\n", p, percentileMap.get(p)));
@@ -302,23 +302,23 @@ public class SimulatorController {
                 
                 // Lock wait time stats
                 sb.append("--- LOCK WAIT TIME STATS ---\n");
-                long totalLockWait = statistics.getTotalLockWaitTimeByOperation(operationType);
-                double avgLockWait = statistics.getAverageLockWaitTimeByOperation(operationType);
-                double percentWaited = statistics.getPercentageOfOpsWaitedForLocksByOperation(operationType);
-                sb.append(String.format("Total Lock Wait Time: %d ms\n", totalLockWait));
-                sb.append(String.format("Average Lock Wait Time: %.2f ms\n", avgLockWait));
-                sb.append(String.format("Percentage of Ops That Waited for Locks: %.2f%%\n", percentWaited));
+                //long totalLockWait = statistics.getTotalLockWaitTimeByOperation(operationType);
+                //double avgLockWait = statistics.getAverageLockWaitTimeByOperation(operationType);
+                //double percentWaited = statistics.getPercentageOfOpsWaitedForLocksByOperation(operationType);
+                //sb.append(String.format("Total Lock Wait Time: %d ms\n", totalLockWait));
+                //sb.append(String.format("Average Lock Wait Time: %.2f ms\n", avgLockWait));
+                //sb.append(String.format("Percentage of Ops That Waited for Locks: %.2f%%\n", percentWaited));
                 sb.append("\n");
                 
                 // Throughput stats
                 sb.append("--- THROUGHPUT STATS ---\n");
-                double avgThroughput = statistics.getAverageThroughputByOperation(operationType);
+                double avgThroughput = statistics.getAverageThroughputByOperation(opID);
                 sb.append(String.format("Average Throughput: %.2f ops/sec\n", avgThroughput));
                 sb.append("\n");
                 
                 // Throughput by second
                 sb.append("Throughput by Second (ops/sec):\n");
-                java.util.Map<Long, Integer> throughput = statistics.getThroughputByOperation(operationType);
+                java.util.Map<Long, Integer> throughput = statistics.getThroughputByOperation(opID);
                 for (java.util.Map.Entry<Long, Integer> entry : throughput.entrySet()) {
                     long secondMs = entry.getKey();
                     int count = entry.getValue();

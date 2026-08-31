@@ -5,7 +5,6 @@ import com.sim.mongo.events.ResultArrivesToSourceEvent;
 
 import java.util.LinkedList;
 import java.util.List;
-import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -47,7 +46,7 @@ public class ConcurrencyManager {
         if (readsExecuting.size() < 128) {
             readsExecuting.add(op);
             op.setState(OperationStateEnum.EXECUTING);
-            op.setExecutionStartTime(arriveTime);
+            op.setExecutionStartTimeAndScheduleEndEvent(arriveTime);
             generateConflictsWithWrites(op);
         }
         else{
@@ -60,7 +59,7 @@ public class ConcurrencyManager {
         if (writesExecuting.size() < 128) {
             writesExecuting.add(op);
             op.setState(OperationStateEnum.EXECUTING);
-            op.setExecutionStartTime(arriveTime);
+            op.setExecutionStartTimeAndScheduleEndEvent(arriveTime);
             GlobalScheduler.instance().schedule(op.getEndEvent());
             generateConflictsWithWrites(op);
         }
@@ -73,11 +72,11 @@ public class ConcurrencyManager {
     public void endOperationSuccessfully(Operation operation, long endTime){
         if(operation.isRead()) {
             readsExecuting.remove(operation); //TODO equals
-            startNewOperation(true, endTime);
+            startQueuedOperation(true, endTime);
         }
         else{
             writesExecuting.remove(operation);
-            startNewOperation(false, endTime);
+            startQueuedOperation(false, endTime);
         }
         operation.setEndTime(endTime);
         operation.setResultReachedSourceTime();
@@ -87,18 +86,18 @@ public class ConcurrencyManager {
     private void giveReadTicketAfterQueuing(Operation op, long previousOpEndTime){
         readsExecuting.add(op);
         op.setState(OperationStateEnum.EXECUTING);
-        op.setExecutionStartTime(previousOpEndTime);
+        op.setExecutionStartTimeAndScheduleEndEvent(previousOpEndTime);
         generateConflictsWithWrites(op);
     }
 
     private void giveWriteTicketAfterQueuing(Operation op, long previousOpEndTime){
         writesExecuting.add(op);
         op.setState(OperationStateEnum.EXECUTING);
-        op.setExecutionStartTime(previousOpEndTime);
+        op.setExecutionStartTimeAndScheduleEndEvent(previousOpEndTime);
         generateConflictsWithWrites(op);
     }
 
-    private void startNewOperation(boolean read, long previousOpEndTime){
+    private void startQueuedOperation(boolean read, long previousOpEndTime){
         if(read){
             Operation firstWaitingOp = getFirstWaitingOp(true);
             if(firstWaitingOp!=null){

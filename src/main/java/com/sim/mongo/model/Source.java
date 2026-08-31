@@ -46,6 +46,7 @@ public class Source {
             for(int i=0; i<opNumber; i++){
                 long creationTime = secondStartMs + (long) (Math.random() * 1000.0);
                 Operation op = new Operation(opDef, this, creationTime, (long) clientToNodeTravelTime.sample());
+                System.out.println("scheduling operationArrive event");
                 com.sim.mongo.GlobalScheduler.instance().schedule(new OperationArrivesToNodeEvent(op, creationTime+op.getClientToNodeTravelTime()));
             }
         }

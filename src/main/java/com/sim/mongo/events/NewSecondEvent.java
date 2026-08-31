@@ -16,8 +16,14 @@ public class NewSecondEvent extends Event {
     }
 
     public void process(){
+        System.out.println("new second event");
         clients.forEach((id, client) -> {
             client.scheduleThisSecondOperations(secondStartMs);
         });
+    }
+
+    @Override
+    public String toString(){
+        return Long.toString(secondStartMs);
     }
 }

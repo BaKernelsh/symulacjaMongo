@@ -1,6 +1,7 @@
 package com.sim.mongo.gui;
 
 import com.sim.mongo.Simulation;
+import com.sim.mongo.distributions.PoissonDistribution;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -11,6 +12,8 @@ import org.ja.OperationTypeEnum;
 import org.ja.Shard;
 import org.ja.statistics.Statistics;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -147,7 +150,13 @@ public class SimulatorController {
                 def.setAffectedDocNumberDistribution(docsDist);
                 def.setBaseExecutionTimeDistribution(baseDist);
 
-                readDefs.add(def); // or writeDefs depending on type
+                if (def.getType().isRead()) {
+                    System.out.println(opc.id + " read");
+                    readDefs.add(def);
+                } else {
+                    System.out.println(opc.id + " write");
+                    writeDefs.add(def);
+                }
             }
 
             com.sim.mongo.model.Source srcModel = new com.sim.mongo.model.Source(sourceId++, targetShard, readDefs, writeDefs);
@@ -169,14 +178,11 @@ public class SimulatorController {
                 statistics.clear();
                 sim.run();
                 appendLog("Simulation finished");
-                // Store statistics reference for UI display
-                //statistics = sim.getStatistics();
-                //refreshStatistics();
+
             } catch (Exception ex) {
                 System.out.println("Simulation error:");
                 ex.printStackTrace(System.out);
 
-                // GUI shows only a short, non-sensitive notice
                 appendLog("Simulation error occurred (see stdout)");
             }
         }, "simulation-thread");
@@ -199,6 +205,7 @@ public class SimulatorController {
             case "Constant": return new com.sim.mongo.distributions.ConstantDistribution(d.getParams()[0]);
             case "Uniform": return new com.sim.mongo.distributions.UniformDistribution(d.getParams()[0], d.getParams()[1]);
             case "Exponential": return new com.sim.mongo.distributions.ExponentialDistribution(d.getParams()[0]);
+            case "Poisson": return new PoissonDistribution(d.getParams()[0]);
             default: throw new IllegalArgumentException("Unknown distribution: " + d.getType());
         }
     }
@@ -226,6 +233,13 @@ public class SimulatorController {
             // Auto-select "ALL OPERATIONS" if nothing selected
             if (operationTypesListView.getSelectionModel().getSelectedItem() == null) {
                 operationTypesListView.getSelectionModel().selectFirst();
+            }
+            try {
+                statistics.saveResults(Instant.now().toString().replace(":", "."));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         });
     }
@@ -558,7 +572,7 @@ public class SimulatorController {
         grid.setHgap(8);
         grid.setVgap(8);
 
-        ChoiceBox<String> typeChoice = new ChoiceBox<>(FXCollections.observableArrayList("Constant", "Uniform", "Exponential"));
+        ChoiceBox<String> typeChoice = new ChoiceBox<>(FXCollections.observableArrayList("Constant", "Uniform", "Exponential", "Poisson"));
         typeChoice.setValue("Constant");
 
         TextField param1 = new TextField();
@@ -576,7 +590,9 @@ public class SimulatorController {
         // dynamically enable/disable param2 depending on type
         typeChoice.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
             if ("Uniform".equals(newV)) param2.setDisable(false); else param2.setDisable(true);
-            if ("Exponential".equals(newV)) param1.setPromptText("mean"); else param1.setPromptText("value (or min)");
+            if ("Exponential".equals(newV)) param1.setPromptText("mean");
+            else if ("Poisson".equals(newV)) param1.setPromptText("lambda");
+            else param1.setPromptText("value (or min)");
         });
         param2.setDisable(true);
 
@@ -597,6 +613,10 @@ public class SimulatorController {
                     } else if ("Exponential".equals(type)) {
                         double mean = Double.parseDouble(param1.getText());
                         return new DistributionConfig("Exponential", new double[]{mean});
+                    }
+                    else if ("Poisson".equals(type)){
+                        double lambda = Double.parseDouble(param1.getText());
+                        return new DistributionConfig("Poisson", new double[]{lambda});
                     }
                 } catch (NumberFormatException ex){ showAlert("Invalid numeric parameter"); return null; }
             }
@@ -671,6 +691,7 @@ public class SimulatorController {
             if ("Constant".equals(type)) return "Const("+params[0]+")";
             if ("Uniform".equals(type)) return "Unif("+params[0]+","+params[1]+")";
             if ("Exponential".equals(type)) return "Exp(mean="+params[0]+")";
+            if("Poisson".equals(type)) return "Poiss(lambda=)"+params[0]+")";
             return type;
         }
     }

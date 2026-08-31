@@ -18,12 +18,18 @@ public class OperationEndEvent extends Event {
     @Override
     public void process() {
         if(!rescheduled) {
+            //System.out.println("operation end event - " + operation.getType());
             operation.endOperationSuccessfully(time);
 
-            System.out.println("operation end event - adding lock time: " + Long.toString(operation.getEndTime() - (operation.getExecutionStartTime() + operation.getBaseExecutionTimeMs())));
+            //System.out.println("operation end event - adding lock time: " + Long.toString(operation.getExecutionPlusLocksTime() - operation.getBaseExecutionTimeMs()));
             Statistics.instance().recordLockWaitTime(operation);
-            System.out.println("operation end event - adding response time: " + Long.toString(operation.getResultReachedSourceTime() - operation.getCreationTime()));
+            //System.out.println("operation.getCreationTime() = " + operation.getCreationTime());
+            //System.out.println("operation.getResultReachedSourceTime() = " +operation.getResultReachedSourceTime());
+            //System.out.println("operation end event - adding response time: " + Long.toString(operation.getResultReachedSourceTime() - operation.getCreationTime()));
             Statistics.instance().recordOperationCompletion(operation);
+        }
+        else{
+            System.out.println("processin cancelled");
         }
     }
 

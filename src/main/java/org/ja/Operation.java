@@ -11,6 +11,8 @@ import org.ja.Utils.OperationUtils;
 import java.util.Random;
 
 public class Operation {
+    @Getter
+    private String operationInstanceID;
 
     private OperationDefinition operationDefinition;
     private int affectedDocumentCount;
@@ -33,7 +35,8 @@ public class Operation {
     private long executionStartTime;
     @Getter
     private long baseExecutionTimeMs;
-    private long executionTime;
+    @Getter
+    private long executionPlusLocksTime;
     @Getter
     @Setter
     private OperationEndEvent endEvent;
@@ -43,11 +46,13 @@ public class Operation {
     @Getter
     private long resultReachedSourceTime;
 
-    public Operation(OperationDefinition definition, Source source, long creationTime, long clientToNodeTravelTime){
+    public Operation(OperationDefinition definition, Source source, long opNumber, long creationTime, long clientToNodeTravelTime){
         operationDefinition = definition;
+        operationInstanceID = definition.getId() + "_" + opNumber;
 
         affectedDocumentCount = definition.getRandomAffectedDocNumber();
         baseExecutionTimeMs = definition.getRandomBaseExecutionTime();
+        executionPlusLocksTime = baseExecutionTimeMs;
 
         this.creationTime = creationTime;
         this.clientToNodeTravelTime = clientToNodeTravelTime;
@@ -64,6 +69,9 @@ public class Operation {
     }
 
     public void generateConflictsWithOperation(Operation otherOperation){
+        if(!getAffectedCollectionName().equals(otherOperation.getAffectedCollectionName()))
+            return;
+
         int numberOfDocsInCollection = source.getTargetShardPrimaryNode().getNumberOfDocsInCollection(operationDefinition.getAffectedCollectionName());
         //Liczba sposobów, na które można wybrać dokumenty dla tej operacji z dokumentów nieużywanych przez drugą operację
         int c1 =
@@ -76,6 +84,7 @@ public class Operation {
         Random rand = new Random();
         long thisOpTimeIncrease = 0;
         if(rand.nextDouble() < conflictProbability){
+            System.out.println("reschedule");
             int numberOfConflicts;
             int thisOpNumberOfLockWaits;
             int otherOpNumberOfLockWaits;
@@ -118,7 +127,7 @@ public class Operation {
     }
     public void setExecutionStartTimeAndScheduleEndEvent(long time){
         executionStartTime = time;
-        endEvent = new OperationEndEvent(this, executionTime + baseExecutionTimeMs);
+        endEvent = new OperationEndEvent(this, executionStartTime + baseExecutionTimeMs);
         GlobalScheduler.instance().schedule(endEvent);
     }
 
@@ -127,14 +136,35 @@ public class Operation {
         resultReachedSourceTime = endTime + clientToNodeTravelTime;
     }
 
-    private void updateExecutionTimeAndRescheduleEndEvent(long executionTimeToAdd){
-        executionTime += executionTimeToAdd;
+    private void updateExecutionTimeAndRescheduleEndEvent(long lockTimeToAdd){
+        executionPlusLocksTime += lockTimeToAdd;
         endEvent.cancel();
-        endEvent = new OperationEndEvent(this, executionStartTime + executionTime);
+        endEvent = new OperationEndEvent(this, executionStartTime + executionPlusLocksTime);
         GlobalScheduler.instance().schedule(endEvent);
     }
 
     public String getID(){
         return operationDefinition.getId();
+    }
+
+    public String getAffectedCollectionName(){
+        return operationDefinition.getAffectedCollectionName();
+    }
+
+    @Override
+    public boolean equals(Object o){
+        if(o == this)
+            return true;
+        if(!(o instanceof Operation))
+            return false;
+        Operation otherOp = (Operation) o;
+        if(this.getOperationInstanceID().equals(otherOp.getOperationInstanceID()))
+            return true;
+        return false;
+    }
+
+    @Override
+    public int hashCode(){
+        return operationInstanceID.hashCode();
     }
 }

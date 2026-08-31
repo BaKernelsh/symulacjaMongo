@@ -29,4 +29,16 @@ public class GlobalScheduler {
     public synchronized void clear() {
         queue.clear();
     }
+
+    public synchronized int size(){
+        return queue.size();
+    }
+
+    public synchronized void printEvents(){
+        PriorityQueue<Event> copy = new PriorityQueue<>(queue);
+
+        while (!copy.isEmpty()) {
+            System.out.println(copy.poll());
+        }
+    }
 }

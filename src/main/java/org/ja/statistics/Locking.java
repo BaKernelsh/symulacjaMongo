@@ -13,10 +13,14 @@ public class Locking {
     private Map<String, List<Long>> operationIDToLockWaitTimes = new ConcurrentHashMap<>();
     private List<Long> allLockWaitTimes = Collections.synchronizedList(new ArrayList<>());
 
+    public long getTotalWaitedCount(){
+        return allLockWaitTimes.size();
+    }
+
 
     public void recordLockWaitTime(Operation operation) {
 
-        long lockWaitTime = operation.getEndTime() - (operation.getExecutionStartTime() + operation.getBaseExecutionTimeMs());
+        long lockWaitTime = operation.getExecutionPlusLocksTime() - operation.getBaseExecutionTimeMs();
 
         if(lockWaitTime!= 0) {
             String opID = operation.getID();
@@ -79,7 +83,7 @@ public class Locking {
      */
     public double getPercentageOfOpsWaitedForLocksAllOps(long totalOperationsCompleted) {
         if (totalOperationsCompleted == 0) return 0.0;
-        return (double) allLockWaitTimes.size() / totalOperationsCompleted * 100.0;
+        return ((double) allLockWaitTimes.size() / totalOperationsCompleted) * 100.0;
     }
 
     /**
@@ -93,11 +97,14 @@ public class Locking {
             if(opIDToCount.get(opID) == 0)
                 opIDToPercentage.put(opID, 0.0);
             else
-                opIDToPercentage.put(opID, (double)lockTimes.size() / (double) opIDToCount.get(opID));
+                opIDToPercentage.put(opID, ((double)lockTimes.size() / (double) opIDToCount.get(opID)) * 100.0);
         });
 
         return opIDToPercentage;
     }
 
+    public long getOpsWaitedForLockCountForOpID(String opID){
+        return operationIDToLockWaitTimes.get(opID).size();
+    }
 
 }

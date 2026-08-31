@@ -24,6 +24,8 @@ public class Source {
     private final List<OperationDefinition> readOperationsDefinitions;
     private final List<OperationDefinition> writeOperationsDefinitions;
 
+    private long operationsSent = 0;
+
     public Source(int id, Shard shard, List<OperationDefinition> readOperationsDefinitions, List<OperationDefinition> writeOperationsDefinitions) {
         this.id = id;
 
@@ -43,11 +45,12 @@ public class Source {
     private void scheduleOperationsFromDefinitionCollection(List<OperationDefinition> definitions, long secondStartMs){
         for(OperationDefinition opDef : definitions){
             int opNumber = opDef.getRandomOpNumber();
+            System.out.println("scheduling " + opNumber + " " +opDef.getId() + " for second " +secondStartMs );
             for(int i=0; i<opNumber; i++){
                 long creationTime = secondStartMs + (long) (Math.random() * 1000.0);
-                Operation op = new Operation(opDef, this, creationTime, (long) clientToNodeTravelTime.sample());
-                System.out.println("scheduling operationArrive event");
+                Operation op = new Operation(opDef, this, operationsSent, creationTime, (long) clientToNodeTravelTime.sample());
                 com.sim.mongo.GlobalScheduler.instance().schedule(new OperationArrivesToNodeEvent(op, creationTime+op.getClientToNodeTravelTime()));
+                operationsSent++;
             }
         }
     }

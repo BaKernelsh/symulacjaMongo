@@ -27,18 +27,26 @@ public class Simulation {
             GlobalScheduler.instance().schedule(new NewSecondEvent(clients, i));
             i += 1000;
         }
+        GlobalScheduler.instance().printEvents();
     }
 
     public void run() {
         long end = simulationTimeMs;
         while (!GlobalScheduler.instance().isEmpty()) {
             if (Thread.currentThread().isInterrupted()) {
-                // allow interrupt-based cancellation
                 break;
             }
             Event e = GlobalScheduler.instance().next();
             if (e == null) break;
-            if (e.getTime() > end) break;
+            if (e.getTime() > end) {
+                System.out.println(
+                        "Stopping simulation: event=" + e.getClass().getSimpleName() +
+                                ", eventTime=" + e.getTime() +
+                                ", simulationEnd=" + end +
+                                ", remainingEvents=" + GlobalScheduler.instance().size()
+                );
+                break;
+            }
             e.process();
         }
     }

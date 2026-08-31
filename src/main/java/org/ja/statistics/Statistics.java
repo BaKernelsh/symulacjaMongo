@@ -3,6 +3,11 @@ package org.ja.statistics;
 import lombok.Getter;
 import org.ja.Operation;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -98,9 +103,9 @@ public class Statistics {
                 .add(responseTimeMs);
 
         // Track throughput
-        long secondStart = getSecondBucket(operation.getCreationTime());
-        throughputBySecond.merge(secondStart, 1, Integer::sum);
-        throughputBySecondPerOperation.computeIfAbsent(secondStart, k -> new ConcurrentHashMap<>())
+        long secondEnd = getSecondBucket(operation.getResultReachedSourceTime());
+        throughputBySecond.merge(secondEnd, 1, Integer::sum);
+        throughputBySecondPerOperation.computeIfAbsent(secondEnd, k -> new ConcurrentHashMap<>())
                 .merge(operation.getID(), 1, Integer::sum);
 
         totalOperationsCompleted++;
@@ -273,4 +278,287 @@ public class Statistics {
             );
         }
     }
+
+
+
+    /**
+     * Export all collected statistics to CSV files and generate charts using Python.
+     *
+     * @param outputDirectory directory where CSV files and charts will be created
+     * @param pythonScript path to the Python chart-generation script
+     */
+    public void saveResultsAndCreateCharts(String outputDirectory, String pythonScript)
+            throws IOException, InterruptedException {
+
+        Path outputDir = Paths.get(outputDirectory);
+        Files.createDirectories(outputDir);
+
+        exportResponseTimes(outputDir);
+        exportLockWaiting(outputDir);
+        exportThroughput(outputDir);
+
+        ProcessBuilder processBuilder = new ProcessBuilder(
+                "python",
+                pythonScript,
+                outputDir.toAbsolutePath().toString()
+        );
+
+        processBuilder.inheritIO();
+
+        Process process = processBuilder.start();
+        int exitCode = process.waitFor();
+
+        if (exitCode != 0) {
+            throw new RuntimeException(
+                    "Python chart generation failed with exit code " + exitCode
+            );
+        }
+    }
+
+    public void saveResults(String outputDirectory)
+            throws IOException, InterruptedException {
+
+        saveResultsAndCreateCharts(
+                outputDirectory,
+                "statistics_charts.py"
+        );
+    }
+
+
+    /**
+     * Export response times.
+     *
+     * File format:
+     * operation_id,response_time_ms
+     */
+    private void exportResponseTimes(Path outputDir) throws IOException {
+
+        Path file = outputDir.resolve("response_times.csv");
+
+        try (BufferedWriter writer = Files.newBufferedWriter(file)) {
+
+            writer.write("operation_id,response_time_ms");
+            writer.newLine();
+
+            synchronized (allResponseTimes) {
+                for (Long responseTime : allResponseTimes) {
+                    writer.write("ALL," + responseTime);
+                    writer.newLine();
+                }
+            }
+
+            responseTimesByOperation.forEach((operationId, times) -> {
+                synchronized (times) {
+                    for (Long responseTime : times) {
+                        try {
+                            writer.write(
+                                    escapeCsv(operationId) + "," + responseTime
+                            );
+                            writer.newLine();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+
+    /**
+     * Export lock waiting statistics.
+     *
+     * File format:
+     * operation_id,total_wait_ms,wait_count,operation_count,percentage_waited
+     */
+    private void exportLockWaiting(Path outputDir) throws IOException {
+
+        Path file = outputDir.resolve("lock_waiting.csv");
+
+        Map<String, Integer> operationCounts = new HashMap<>();
+
+        responseTimesByOperation.forEach((operationId, times) -> {
+            synchronized (times) {
+                operationCounts.put(operationId, times.size());
+            }
+        });
+
+
+        try (BufferedWriter writer = Files.newBufferedWriter(file)) {
+
+            writer.write(
+                    "operation_id,total_wait_ms,wait_count," +
+                            "operation_count,percentage_waited"
+            );
+            writer.newLine();
+
+            // All operations
+            long totalWaitTime = lockingStatistics.getTotalLockWaitTimeAllOps();
+            long waitedCount = lockingStatistics.getTotalWaitedCount();
+
+            long totalOperations = allResponseTimes.size();
+
+            double percentage = lockingStatistics.getPercentageOfOpsWaitedForLocksAllOps(allResponseTimes.size());
+
+            writer.write(
+                    "ALL,"
+                            + totalWaitTime + ","
+                            + waitedCount + ","
+                            + totalOperations + ","
+                            + percentage
+            );
+            writer.newLine();
+
+            calcOperationCounts();
+            System.out.println("starting saving locktime by op");
+            lockingStatistics.getPercentageOfOpsWaitedForLocksByOperation(opIDToCount).forEach((opID, lockedPercentage) -> {
+                System.out.println("saving lock time for " + opID);
+                try {
+                    writer.write(
+                            escapeCsv(opID)
+                                    + ","
+                                    + " "
+                                    + ","
+                                    + lockingStatistics.getOpsWaitedForLockCountForOpID(opID)
+                                    + ","
+                                    + responseTimesByOperation.get(opID).size()
+                                    + ","
+                                    + lockedPercentage
+                    );
+                    writer.newLine();
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+            });
+
+/*            // Per operation
+            for (Map.Entry<String, Stats> entry : lockStats.entrySet()) {
+
+                String operationId = entry.getKey();
+                Stats stats = entry.getValue();
+
+                int operationCount =
+                        operationCounts.getOrDefault(operationId, 0);
+
+                double operationPercentage =
+                        operationCount == 0
+                                ? 0.0
+                                : ((double) stats.count / operationCount) * 100.0;
+
+                writer.write(
+                        escapeCsv(operationId)
+                                + ","
+                                + stats.total
+                                + ","
+                                + stats.count
+                                + ","
+                                + operationCount
+                                + ","
+                                + operationPercentage
+                );
+
+                writer.newLine();
+            }*/
+        }
+    }
+
+
+    /**
+     * Export throughput.
+     *
+     * File format:
+     * timestamp_ms,operation_id,count
+     */
+    private void exportThroughput(Path outputDir) throws IOException {
+
+        Path fileAll = outputDir.resolve("throughputAll.csv");
+
+        try (BufferedWriter writer = Files.newBufferedWriter(fileAll)) {
+
+            writer.write("second,count");
+            writer.newLine();
+
+            throughputBySecond.forEach((second, opCount) -> {
+                try {
+                    writer.write(
+                            second
+                                    + "," + opCount
+                    );
+                    writer.newLine();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        Path fileByOp = outputDir.resolve("throughputByOp.csv");
+
+        try (BufferedWriter writer = Files.newBufferedWriter(fileByOp)) {
+
+            Set<String> opNames = throughputBySecondPerOperation.get(throughputBySecondPerOperation.keySet().stream().findAny().get()).keySet();
+            String header = "second," + String.join(",", opNames);
+            writer.write(header);
+            writer.newLine();
+
+            throughputBySecondPerOperation.forEach((second, opToCountMap) -> {
+                String row = second + "," + String.join(
+                        ",",
+                        opToCountMap.values().stream()
+                                .map(String::valueOf)
+                                .toList()
+                );
+                try {
+                    writer.write(row);
+                    writer.newLine();
+
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+            });
+
+
+/*            Map<Long, Map<String, Integer>> perOperation =
+                    new TreeMap<>(throughputBySecondPerOperation);
+
+            for (Map.Entry<Long, Map<String, Integer>> secondEntry
+                    : perOperation.entrySet()) {
+
+                long timestamp = secondEntry.getKey();
+
+                for (Map.Entry<String, Integer> operationEntry
+                        : secondEntry.getValue().entrySet()) {
+
+                    writer.write(
+                            timestamp
+                                    + ","
+                                    + escapeCsv(operationEntry.getKey())
+                                    + ","
+                                    + operationEntry.getValue()
+                    );
+                    writer.newLine();
+                }
+            }*/
+        }
+    }
+
+
+    /**
+     * Basic CSV escaping.
+     */
+    private String escapeCsv(String value) {
+
+        if (value == null) {
+            return "";
+        }
+
+        if (value.contains(",")
+                || value.contains("\"")
+                || value.contains("\n")) {
+
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+
+        return value;
+    }
+
 }

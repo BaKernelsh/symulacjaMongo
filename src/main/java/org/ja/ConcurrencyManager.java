@@ -13,13 +13,13 @@ public class ConcurrencyManager {
     private Queue<Operation> waitingForTicketQ = new LinkedBlockingQueue<>();
     private List<Operation> readsExecuting = new LinkedList<>();
     private List<Operation> writesExecuting = new LinkedList<>();
-    private int concurrentReadTransactions = 128;
-    private int concurrentWriteTransactions = 128;
+    private int concurrentReadTransactionsAllowed = 128;
+    private int concurrentWriteTransactionsAllowed = 128;
 
 
-    public ConcurrencyManager(int concurrentReadTransactions, int concurrentWriteTransactions){
-        this.concurrentReadTransactions = concurrentReadTransactions;
-        this.concurrentWriteTransactions = concurrentWriteTransactions;
+    public ConcurrencyManager(int concurrentReadTransactionsAllowed, int concurrentWriteTransactionsAllowed){
+        this.concurrentReadTransactionsAllowed = concurrentReadTransactionsAllowed;
+        this.concurrentWriteTransactionsAllowed = concurrentWriteTransactionsAllowed;
     }
 
     public ConcurrencyManager(){}
@@ -27,7 +27,6 @@ public class ConcurrencyManager {
     public void addOperation(Operation operation, long arriveTime){
         if(operation.isRead()) {
             giveReadTicketOrQueue(operation, arriveTime);
-            //TODO wstawienie eventu zakonczenia operacji
         }
 
         else {
@@ -38,16 +37,17 @@ public class ConcurrencyManager {
 
     private void generateConflictsWithWrites(Operation operation){
         writesExecuting.forEach(writeOp ->{
-            operation.generateConflictsWithOperation(writeOp);
+            if (writeOp != operation) {
+                operation.generateConflictsWithOperation(writeOp);
+            }
         });
     }
 
     private void giveReadTicketOrQueue(Operation op, long arriveTime){
-        if (readsExecuting.size() < 128) {
+        if (readsExecuting.size() < concurrentReadTransactionsAllowed) {
             readsExecuting.add(op);
             op.setState(OperationStateEnum.EXECUTING);
             op.setExecutionStartTimeAndScheduleEndEvent(arriveTime);
-            generateConflictsWithWrites(op);
         }
         else{
             waitingForTicketQ.add(op);
@@ -56,11 +56,10 @@ public class ConcurrencyManager {
     }
 
     private void giveWriteTicketOrQueue(Operation op, long arriveTime){
-        if (writesExecuting.size() < 128) {
+        if (writesExecuting.size() < concurrentWriteTransactionsAllowed) {
             writesExecuting.add(op);
             op.setState(OperationStateEnum.EXECUTING);
             op.setExecutionStartTimeAndScheduleEndEvent(arriveTime);
-            GlobalScheduler.instance().schedule(op.getEndEvent());
             generateConflictsWithWrites(op);
         }
         else{
@@ -71,16 +70,16 @@ public class ConcurrencyManager {
 
     public void endOperationSuccessfully(Operation operation, long endTime){
         if(operation.isRead()) {
-            readsExecuting.remove(operation); //TODO equals
+            readsExecuting.remove(operation);
             startQueuedOperation(true, endTime);
         }
         else{
+            //System.out.println("usunieto operacje z wykonywanych" + writesExecuting.remove(operation));
             writesExecuting.remove(operation);
             startQueuedOperation(false, endTime);
         }
         operation.setEndTime(endTime);
         operation.setResultReachedSourceTime();
-        GlobalScheduler.instance().schedule(new ResultArrivesToSourceEvent(operation.getResultReachedSourceTime()));
     }
 
     private void giveReadTicketAfterQueuing(Operation op, long previousOpEndTime){

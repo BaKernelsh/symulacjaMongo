@@ -10,6 +10,7 @@ import javafx.scene.layout.GridPane;
 import javafx.util.Pair;
 import org.ja.OperationTypeEnum;
 import org.ja.Shard;
+import org.ja.Statistics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,8 +44,16 @@ public class SimulatorController {
     @FXML private Button cancelSimulationButton;
     @FXML private TextArea simulationLogArea;
 
+    // Statistics tab
+    @FXML private ListView<String> operationTypesListView;
+    @FXML private TextArea statisticsTextArea;
+    @FXML private Button refreshStatsButton;
+
     // background thread for simulation
     private Thread simulationThread;
+    
+    // Statistics reference
+    private Statistics statistics;
 
     private final ObservableList<ShardConfig> shards = FXCollections.observableArrayList();
     private final ObservableList<SourceConfig> sources = FXCollections.observableArrayList();
@@ -76,6 +85,11 @@ public class SimulatorController {
 
         startSimulationButton.setOnAction(e -> startSimulation());
         cancelSimulationButton.setOnAction(e -> cancelSimulation());
+
+        // Statistics tab initialization
+        operationTypesListView.setItems(FXCollections.observableArrayList());
+        operationTypesListView.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> onOperationTypeSelected(newV));
+        refreshStatsButton.setOnAction(e -> refreshStatistics());
 
         refreshAssignedShardChoices();
     }
@@ -155,6 +169,9 @@ public class SimulatorController {
             try {
                 sim.run();
                 appendLog("Simulation finished");
+                // Store statistics reference for UI display
+                statistics = sim.getStatistics();
+                refreshStatistics();
             } catch (Exception ex) {
                 System.out.println("Simulation error:");
                 ex.printStackTrace(System.out);
@@ -184,6 +201,133 @@ public class SimulatorController {
             case "Exponential": return new com.sim.mongo.distributions.ExponentialDistribution(d.getParams()[0]);
             default: throw new IllegalArgumentException("Unknown distribution: " + d.getType());
         }
+    }
+
+    // --- Statistics tab logic ---
+    private void refreshStatistics() {
+        if (statistics == null) {
+            Platform.runLater(() -> {
+                operationTypesListView.setItems(FXCollections.observableArrayList());
+                statisticsTextArea.clear();
+                statisticsTextArea.setText("No statistics available. Run simulation first.");
+            });
+            return;
+        }
+
+        Platform.runLater(() -> {
+            // Create list of operation types + "ALL OPERATIONS"
+            java.util.Set<String> opTypes = statistics.getRecordedOperationTypes();
+            List<String> displayList = new ArrayList<>();
+            displayList.add("ALL OPERATIONS");
+            displayList.addAll(opTypes.stream().sorted().collect(Collectors.toList()));
+            
+            operationTypesListView.setItems(FXCollections.observableArrayList(displayList));
+            
+            // Auto-select "ALL OPERATIONS" if nothing selected
+            if (operationTypesListView.getSelectionModel().getSelectedItem() == null) {
+                operationTypesListView.getSelectionModel().selectFirst();
+            }
+        });
+    }
+
+    private void onOperationTypeSelected(String operationType) {
+        if (statistics == null || operationType == null) {
+            statisticsTextArea.clear();
+            return;
+        }
+
+        Platform.runLater(() -> {
+            StringBuilder sb = new StringBuilder();
+            
+            if ("ALL OPERATIONS".equals(operationType)) {
+                sb.append("=== STATISTICS FOR ALL OPERATIONS ===\n\n");
+                
+                // Response time stats
+                sb.append("--- RESPONSE TIME STATS ---\n");
+                Statistics.ResponseTimeStats rtStats = statistics.getResponseTimeStatsAllOps();
+                sb.append(rtStats.toString()).append("\n\n");
+                
+                // Percentiles
+                double[] percentiles = {50, 95, 99, 99.9};
+                java.util.Map<Double, Long> percentileMap = statistics.getResponseTimePercentilesAllOps(percentiles);
+                sb.append("Response Time Percentiles (ms):\n");
+                for (double p : percentiles) {
+                    sb.append(String.format("  p%.1f: %d ms\n", p, percentileMap.get(p)));
+                }
+                sb.append("\n");
+                
+                // Lock wait time stats
+                sb.append("--- LOCK WAIT TIME STATS ---\n");
+                long totalLockWait = statistics.getTotalLockWaitTimeAllOps();
+                double avgLockWait = statistics.getAverageLockWaitTimeAllOps();
+                double percentWaited = statistics.getPercentageOfOpsWaitedForLocksAllOps();
+                sb.append(String.format("Total Lock Wait Time: %d ms\n", totalLockWait));
+                sb.append(String.format("Average Lock Wait Time: %.2f ms\n", avgLockWait));
+                sb.append(String.format("Percentage of Ops That Waited for Locks: %.2f%%\n", percentWaited));
+                sb.append("\n");
+                
+                // Throughput stats
+                sb.append("--- THROUGHPUT STATS ---\n");
+                double avgThroughput = statistics.getAverageThroughputAllOps();
+                sb.append(String.format("Average Throughput: %.2f ops/sec\n", avgThroughput));
+                sb.append(String.format("Total Operations Completed: %d\n", statistics.getTotalOperationsCompleted()));
+                sb.append("\n");
+                
+                // Throughput by second
+                sb.append("Throughput by Second (ops/sec):\n");
+                java.util.Map<Long, Integer> throughput = statistics.getThroughputAllOps();
+                for (java.util.Map.Entry<Long, Integer> entry : throughput.entrySet()) {
+                    long secondMs = entry.getKey();
+                    int count = entry.getValue();
+                    sb.append(String.format("  Second %d: %d ops\n", secondMs / 1000, count));
+                }
+                
+            } else {
+                // Single operation type stats
+                sb.append("=== STATISTICS FOR OPERATION: ").append(operationType).append(" ===\n\n");
+                
+                // Response time stats
+                sb.append("--- RESPONSE TIME STATS ---\n");
+                Statistics.ResponseTimeStats rtStats = statistics.getResponseTimeStatsByOperation(operationType);
+                sb.append(rtStats.toString()).append("\n\n");
+                
+                // Percentiles
+                double[] percentiles = {50, 95, 99, 99.9};
+                java.util.Map<Double, Long> percentileMap = statistics.getResponseTimePercentilesByOperation(operationType, percentiles);
+                sb.append("Response Time Percentiles (ms):\n");
+                for (double p : percentiles) {
+                    sb.append(String.format("  p%.1f: %d ms\n", p, percentileMap.get(p)));
+                }
+                sb.append("\n");
+                
+                // Lock wait time stats
+                sb.append("--- LOCK WAIT TIME STATS ---\n");
+                long totalLockWait = statistics.getTotalLockWaitTimeByOperation(operationType);
+                double avgLockWait = statistics.getAverageLockWaitTimeByOperation(operationType);
+                double percentWaited = statistics.getPercentageOfOpsWaitedForLocksByOperation(operationType);
+                sb.append(String.format("Total Lock Wait Time: %d ms\n", totalLockWait));
+                sb.append(String.format("Average Lock Wait Time: %.2f ms\n", avgLockWait));
+                sb.append(String.format("Percentage of Ops That Waited for Locks: %.2f%%\n", percentWaited));
+                sb.append("\n");
+                
+                // Throughput stats
+                sb.append("--- THROUGHPUT STATS ---\n");
+                double avgThroughput = statistics.getAverageThroughputByOperation(operationType);
+                sb.append(String.format("Average Throughput: %.2f ops/sec\n", avgThroughput));
+                sb.append("\n");
+                
+                // Throughput by second
+                sb.append("Throughput by Second (ops/sec):\n");
+                java.util.Map<Long, Integer> throughput = statistics.getThroughputByOperation(operationType);
+                for (java.util.Map.Entry<Long, Integer> entry : throughput.entrySet()) {
+                    long secondMs = entry.getKey();
+                    int count = entry.getValue();
+                    sb.append(String.format("  Second %d: %d ops\n", secondMs / 1000, count));
+                }
+            }
+            
+            statisticsTextArea.setText(sb.toString());
+        });
     }
 
     // --- Shards logic ---

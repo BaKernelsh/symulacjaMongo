@@ -109,6 +109,31 @@
                         </center>
                     </BorderPane>
                 </Tab>
+
+                <Tab text="Statistics">
+                    <BorderPane>
+                        <center>
+                            <HBox spacing="16">
+                                <padding>
+                                    <Insets top="12" right="12" bottom="12" left="12"/>
+                                </padding>
+
+                                <VBox spacing="8" prefWidth="300">
+                                    <Label text="All Operations / Operation Types" />
+                                    <ListView fx:id="operationTypesListView" prefHeight="500" />
+                                    <Button fx:id="refreshStatsButton" text="Refresh Stats" />
+                                </VBox>
+
+                                <VBox spacing="8" prefWidth="560">
+                                    <Label text="Statistics" />
+                                    <ScrollPane fitToWidth="true" fitToHeight="true">
+                                        <TextArea fx:id="statisticsTextArea" wrapText="true" editable="false" prefHeight="500" />
+                                    </ScrollPane>
+                                </VBox>
+                            </HBox>
+                        </center>
+                    </BorderPane>
+                </Tab>
             </tabs>
         </TabPane>
     </center>

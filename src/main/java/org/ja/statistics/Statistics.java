@@ -431,7 +431,7 @@ public class Statistics {
                 }
             });
 
-/*            // Per operation
+/*
             for (Map.Entry<String, Stats> entry : lockStats.entrySet()) {
 
                 String operationId = entry.getKey();

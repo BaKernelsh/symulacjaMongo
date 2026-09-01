@@ -22,7 +22,6 @@ public class Simulation {
     public void setSimulationTimeMs(long ms) { this.simulationTimeMs = ms; }
 
     public void setup(){
-        //schedule seconds starts events
         for(long i=0; i<simulationTimeMs;){
             GlobalScheduler.instance().schedule(new NewSecondEvent(clients, i));
             i += 1000;

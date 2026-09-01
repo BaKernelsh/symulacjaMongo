@@ -1,16 +1,9 @@
 package com.sim.mongo;
 
-import com.sim.mongo.events.OperationEndEvent;
-import org.ja.Operation;
-
-import java.util.Iterator;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * A global scheduler used across the simple example. This bridges the small design where several
- * components need a shared scheduler. For real usage, wire scheduler explicitly.
- */
+
 public class GlobalScheduler {
     private static final AtomicReference<GlobalScheduler> inst = new AtomicReference<>();
     private final PriorityQueue<Event> queue = new PriorityQueue<>();
